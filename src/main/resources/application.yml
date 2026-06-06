@@ -9,6 +9,13 @@ spring:
     hikari:
       # Don't fail app startup if the DB is briefly unavailable; health will report DOWN until it's up.
       initialization-fail-timeout: -1
+  jpa:
+    hibernate:
+      # Flyway owns the schema; Hibernate only validates the entity-to-table mapping.
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
 
 management:
   endpoints:
