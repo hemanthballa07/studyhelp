@@ -3,17 +3,22 @@ package com.platform.support;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-/** Base for integration tests needing a real Postgres (pgvector image). */
-@Testcontainers
+/**
+ * Base for integration tests needing a real Postgres. Singleton-container pattern: started once per
+ * JVM and reused by every IT class (Ryuk reaps it at JVM exit). Deliberately not annotated with
+ * {@code @Testcontainers}; its per-class stop would kill a container that other cached Spring
+ * contexts still point at, which breaks classes that share a context (see ConnectException on CI).
+ */
 public abstract class PostgresContainerSupport {
 
-    @Container
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(
             DockerImageName.parse("pgvector/pgvector:pg16").asCompatibleSubstituteFor("postgres"));
+
+    static {
+        POSTGRES.start();
+    }
 
     @DynamicPropertySource
     static void datasourceProperties(DynamicPropertyRegistry registry) {
