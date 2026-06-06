@@ -23,4 +23,7 @@ tests (incl. adversarial/arch tests) are green.
 ## Local dev
 1. `cp .env.example .env` and fill in real values (`.env` is gitignored).
 2. `pip install pre-commit && pre-commit install` (enables the gitleaks pre-commit hook).
-3. `docker compose up -d` (Postgres + Redis), then `./gradlew bootRun`.
+3. `docker compose up -d` (Postgres + Redis), then `./gradlew bootRun`. Health: `/actuator/health`.
+4. Run the gate: `./gradlew test archTest` (integration tests use Testcontainers, so Docker must be running).
+
+Requires JDK 21; the Gradle toolchain will provision it automatically if it isn't installed.

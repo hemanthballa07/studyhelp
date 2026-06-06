@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: studyhelp
+  datasource:
+    # DB_URL is supplied as a bare postgresql:// URL (see .env.example); prefix to make it a JDBC URL.
+    url: jdbc:${DB_URL:postgresql://localhost:5432/studyhelp}
+    username: ${DB_USER:studyhelp}
+    password: ${DB_PASSWORD:changeme}
+    hikari:
+      # Don't fail app startup if the DB is briefly unavailable; health will report DOWN until it's up.
+      initialization-fail-timeout: -1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
