@@ -1,0 +1,56 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    name: test + archTest
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: studyhelp
+          POSTGRES_PASSWORD: studyhelp
+          POSTGRES_DB: studyhelp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U studyhelp"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect Gradle wrapper
+        id: gradle
+        run: |
+          if [ -f ./gradlew ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "No gradlew yet — config-only commit, skipping build."
+          fi
+
+      - name: Set up JDK 21
+        if: steps.gradle.outputs.exists == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Run tests + arch tests
+        if: steps.gradle.outputs.exists == 'true'
+        env:
+          DB_URL: postgresql://localhost:5432/studyhelp
+          DB_USER: studyhelp
+          DB_PASSWORD: studyhelp
+          REDIS_URL: redis://localhost:6379
+        run: ./gradlew test archTest

@@ -1,0 +1,50 @@
+# =====================================================================
+# Tracked files are ONLY: .gitignore, .env.example, README.md,
+# .pre-commit-config.yaml, .github/workflows/*. Everything else below
+# is ignored. Comments live on their own lines (a trailing # would be
+# read by git as part of the pattern).
+# =====================================================================
+
+# --- Internal / local-only (keep on disk, never commit) ---
+.claude/
+CLAUDE.md
+BACKLOG.md
+PROJECT_STATE.md
+HANDOFF.md
+docs/
+scratch/
+
+# --- Secrets (never commit) ---
+.env
+.env.*
+# Re-include the committed template (must come after .env.*)
+!.env.example
+*.pem
+*.key
+*.p12
+*.keystore
+**/secrets/**
+**/credentials*
+*.tfvars
+*.tfstate*
+
+# --- Eval data (large / regenerable) ---
+eval/datasets/
+eval/results/
+
+# --- Java / Gradle ---
+.gradle/
+build/
+target/
+*.class
+out/
+bin/
+
+# --- IDE / OS / logs ---
+.idea/
+*.iml
+.vscode/
+*.swp
+.DS_Store
+*.log
+logs/
