@@ -7,6 +7,10 @@ plugins {
 group = "com.platform"
 version = "0.0.1-SNAPSHOT"
 
+// Override Spring Boot's managed Testcontainers (1.20.4) so docker-java is new enough to talk to a
+// current Docker Desktop daemon (Engine 29 / API 1.54), which 1.20.4's docker-java rejects with 400.
+extra["testcontainers.version"] = "1.21.4"
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
