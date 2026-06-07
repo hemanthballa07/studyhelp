@@ -75,7 +75,11 @@ public class SecurityConfig {
                         .requestMatchers("/api/ping").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/identity/register").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/claims/**").hasRole("EXPERT")
+                        .requestMatchers("/api/experts/**").hasRole("EXPERT")
                         .anyRequest().authenticated())
+                // Stateless JWT resource server: auth is the bearer token, not a session cookie, so
+                // there is no CSRF vector here to protect against.
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .oauth2ResourceServer(resourceServer -> resourceServer
@@ -153,9 +157,14 @@ public class SecurityConfig {
         return AuthorizationServerSettings.builder().build();
     }
 
-    /** Adds the resource owner's roles as a {@code roles} claim on issued access tokens. */
+    /**
+     * Adds the resource owner's roles ({@code roles}) and platform user id ({@code userId}) to issued
+     * access tokens. The {@code userId} claim lets every context derive the caller from the principal
+     * (see {@code shared.security.CurrentUser}) instead of trusting a request body; it is present only
+     * for end-user tokens (an {@link AuthenticatedUser} principal), not client-credentials tokens.
+     */
     @Bean
-    public OAuth2TokenCustomizer<JwtEncodingContext> jwtRolesCustomizer() {
+    public OAuth2TokenCustomizer<JwtEncodingContext> jwtClaimsCustomizer() {
         return context -> {
             if (!"access_token".equals(context.getTokenType().getValue()) || context.getPrincipal() == null) {
                 return;
@@ -167,6 +176,9 @@ public class SecurityConfig {
                     .collect(Collectors.toSet());
             if (!roles.isEmpty()) {
                 context.getClaims().claim("roles", roles);
+            }
+            if (context.getPrincipal().getPrincipal() instanceof AuthenticatedUser authenticatedUser) {
+                context.getClaims().claim("userId", authenticatedUser.getId().toString());
             }
         };
     }

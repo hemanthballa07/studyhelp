@@ -29,4 +29,14 @@ public interface QuestionRepository {
      * the caller rejects the lost transition rather than silently continuing.
      */
     Optional<Long> applyTransition(UUID id, QuestionState from, QuestionState to, long expectedVersion);
+
+    /**
+     * Atomically claim the next claimable question for {@code subject} (master-design 6.2): one
+     * statement selects the highest-priority, oldest claimable, not-yet-overdue row with {@code FOR
+     * UPDATE SKIP LOCKED} and flips it to CLAIMED with a fresh lease, so concurrent claimers skip a
+     * locked row and never claim the same question. Returns the claimed row, or empty when nothing is
+     * currently claimable. This is the work-queue claim, distinct from the optimistic {@link
+     * #applyTransition} version guard.
+     */
+    Optional<ClaimedRow> claimNextClaimable(String subject, UUID expertId, int leaseMinutes);
 }
