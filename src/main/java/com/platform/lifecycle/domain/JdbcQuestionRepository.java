@@ -4,6 +4,8 @@ import java.sql.Types;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -53,5 +55,36 @@ public class JdbcQuestionRepository implements QuestionRepository {
                         .addValue("fromState", fromState, Types.OTHER)
                         .addValue("toState", toState, Types.OTHER)
                         .addValue("payload", payloadJson));
+    }
+
+    @Override
+    public Optional<QuestionSnapshot> find(UUID id) {
+        return jdbc.query("SELECT state::text AS state, version FROM questions WHERE id = :id",
+                        new MapSqlParameterSource("id", id),
+                        (rs, rowNum) -> new QuestionSnapshot(
+                                QuestionState.valueOf(rs.getString("state")), rs.getLong("version")))
+                .stream()
+                .findFirst();
+    }
+
+    @Override
+    public Optional<Long> applyTransition(UUID id, QuestionState from, QuestionState to, long expectedVersion) {
+        // Optimistic-concurrency guard (master-design 6.1, 8): the UPDATE matches only while the row is
+        // still in `from` at `expectedVersion`. Concurrent attempts serialize on the row lock; once the
+        // winner commits version + 1, every other attempt matches no row and returns empty. RETURNING
+        // yields the new version for the single winner.
+        List<Long> newVersion = jdbc.queryForList("""
+                UPDATE questions
+                SET state = :to, version = version + 1, updated_at = now()
+                WHERE id = :id AND state = :from AND version = :expectedVersion
+                RETURNING version
+                """,
+                new MapSqlParameterSource()
+                        .addValue("id", id)
+                        .addValue("from", from.name(), Types.OTHER)
+                        .addValue("to", to.name(), Types.OTHER)
+                        .addValue("expectedVersion", expectedVersion),
+                Long.class);
+        return newVersion.stream().findFirst();
     }
 }

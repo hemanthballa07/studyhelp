@@ -45,8 +45,10 @@ class OutboxDispatchIT extends PostgresContainerSupport {
     @Test
     void relayDeliversUnpublishedEventToConsumerAndMarksItPublished() {
         UUID eventId = UUID.randomUUID();
+        // A neutral event type: this test exercises relay/dispatcher mechanics with a test consumer,
+        // not lifecycle's routing (which the lifecycle consumer ignores for unrecognised types).
         outbox.append(new OutboxEvent(
-                eventId, UUID.randomUUID(), "Question", "QuestionPosted", "{\"k\":\"v\"}", Instant.now()));
+                eventId, UUID.randomUUID(), "Test", "TestEvent", "{\"k\":\"v\"}", Instant.now()));
 
         relay.relayPending();
 
@@ -64,15 +66,18 @@ class OutboxDispatchIT extends PostgresContainerSupport {
     void redeliveringAnEventIsANoOp() {
         UUID eventId = UUID.randomUUID();
         OutboxEvent event = new OutboxEvent(
-                eventId, UUID.randomUUID(), "Question", "QuestionPosted", "{}", Instant.now());
+                eventId, UUID.randomUUID(), "Test", "TestEvent", "{}", Instant.now());
         outbox.append(event);
 
         dispatcher.dispatch(event);
         dispatcher.dispatch(event);
 
         assertThat(handler.countFor(eventId)).isEqualTo(1);
+        // Scope to this test's consumer: lifecycle is now a second registered consumer that also
+        // records every dispatched event in processed_events.
         Integer processed = jdbc.queryForObject(
-                "SELECT count(*) FROM processed_events WHERE event_id = ?", Integer.class, eventId);
+                "SELECT count(*) FROM processed_events WHERE consumer = 'test-consumer' AND event_id = ?",
+                Integer.class, eventId);
         assertThat(processed).isEqualTo(1);
     }
 
