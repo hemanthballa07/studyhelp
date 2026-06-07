@@ -27,6 +27,7 @@ public class ExpertPortalEventHandler implements EventHandler {
     private static final String CONSUMER = "expertportal";
     private static final String QUESTION_ROUTED = "QuestionRouted";
     private static final String QUESTION_CLAIMED = "QuestionClaimed";
+    private static final String QUESTION_EXPIRED = "QuestionExpired";
 
     private final ClaimableQueueRepository queue;
     private final ObjectMapper objectMapper;
@@ -44,7 +45,8 @@ public class ExpertPortalEventHandler implements EventHandler {
     @Override
     public void handle(OutboxEvent event) {
         switch (event.eventType()) {
-            case QUESTION_ROUTED -> queue.add(event.aggregateId(), textField(event, "subject"));
+            // A routed question is claimable, and an expired claim is claimable again: both add it back.
+            case QUESTION_ROUTED, QUESTION_EXPIRED -> queue.add(event.aggregateId(), textField(event, "subject"));
             case QUESTION_CLAIMED -> removeFromQueue(event.aggregateId());
             default -> {
                 // Event types the expert portal does not consume (including the events it emits) are
