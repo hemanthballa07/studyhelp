@@ -1,11 +1,13 @@
 package com.platform.identity.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.identity.domain.Feature;
 import com.platform.identity.domain.Plan;
 import com.platform.identity.domain.Role;
@@ -14,8 +16,9 @@ import com.platform.identity.domain.SubscriptionRepository;
 import com.platform.identity.domain.SubscriptionStatus;
 import com.platform.identity.domain.User;
 import com.platform.identity.domain.UserRepository;
-import com.platform.identity.event.EntitlementChanged;
 import com.platform.identity.event.SubscriptionActivated;
+import com.platform.shared.outbox.OutboxEvent;
+import com.platform.shared.outbox.OutboxStore;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -37,18 +40,19 @@ class SubscriptionServiceTest {
     @Mock UserRepository users;
     @Mock EntitlementService entitlements;
     @Mock ApplicationEventPublisher events;
+    @Mock OutboxStore outbox;
 
     private SubscriptionService service;
     private final UUID userId = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
-        service = new SubscriptionService(subscriptions, users, entitlements, events,
-                Clock.fixed(Instant.parse("2026-06-06T00:00:00Z"), ZoneOffset.UTC));
+        service = new SubscriptionService(subscriptions, users, entitlements, events, outbox,
+                new ObjectMapper(), Clock.fixed(Instant.parse("2026-06-06T00:00:00Z"), ZoneOffset.UTC));
     }
 
     @Test
-    void activatingProPublishesActivationAndEntitlementChange() {
+    void activatingProPublishesActivationAndWritesEntitlementChangedToOutbox() {
         User user = new User(userId, "s@x.com", "h", Role.STUDENT, Instant.EPOCH);
         Subscription sub = new Subscription(UUID.randomUUID(), userId, Plan.FREE,
                 SubscriptionStatus.INACTIVE, null, Instant.EPOCH);
@@ -63,15 +67,18 @@ class SubscriptionServiceTest {
         assertThat(sub.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
         verify(subscriptions).save(sub);
 
-        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
-        verify(events, times(2)).publishEvent(captor.capture());
-        assertThat(captor.getAllValues()).anySatisfy(event ->
-                assertThat(event).isInstanceOf(SubscriptionActivated.class));
-        assertThat(captor.getAllValues()).anySatisfy(event -> {
-            assertThat(event).isInstanceOf(EntitlementChanged.class);
-            EntitlementChanged changed = (EntitlementChanged) event;
-            assertThat(changed.userId()).isEqualTo(userId);
-            assertThat(changed.allowedFeatures()).contains("AI_ANSWER", "POST_QUESTION");
-        });
+        verify(events, times(1)).publishEvent(any(SubscriptionActivated.class));
+
+        ArgumentCaptor<OutboxEvent> outboxEvent = ArgumentCaptor.forClass(OutboxEvent.class);
+        verify(outbox).append(outboxEvent.capture());
+        OutboxEvent published = outboxEvent.getValue();
+        assertThat(published.aggregateId()).isEqualTo(userId);
+        assertThat(published.aggregateType()).isEqualTo("User");
+        assertThat(published.eventType()).isEqualTo("EntitlementChanged");
+        assertThat(published.payload())
+                .contains(userId.toString())
+                .contains("AI_ANSWER")
+                .contains("POST_QUESTION");
+        assertThat(published.occurredAt()).isEqualTo(Instant.parse("2026-06-06T00:00:00Z"));
     }
 }
