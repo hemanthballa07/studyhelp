@@ -61,12 +61,14 @@ class QuestionPostingIT extends PostgresContainerSupport {
     @Test
     void postingThroughTheApiReturns201AndWritesAnOutboxRow() throws Exception {
         UUID studentId = UUID.randomUUID();
+        // No studentId in the body: the question is attributed from the principal's userId claim.
         String body = """
-                {"studentId":"%s","subject":"physics","title":"Projectile range","body":"Derive it",
+                {"subject":"physics","title":"Projectile range","body":"Derive it",
                  "deadlineAt":"2030-01-01T00:00:00Z"}
-                """.formatted(studentId);
+                """;
 
-        mockMvc.perform(post("/api/questions").with(jwt())
+        mockMvc.perform(post("/api/questions")
+                        .with(jwt().jwt(token -> token.claim("userId", studentId.toString())))
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated());
 

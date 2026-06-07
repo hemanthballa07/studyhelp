@@ -2,6 +2,7 @@ package com.platform.identity.security;
 
 import com.platform.identity.domain.User;
 import com.platform.identity.domain.UserRepository;
+import java.util.List;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -22,9 +23,7 @@ public class DbUserDetailsService implements UserDetailsService {
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         User user = users.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException(email));
-        return org.springframework.security.core.userdetails.User.withUsername(user.getEmail())
-                .password(user.getPasswordHash())
-                .authorities(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
-                .build();
+        return new AuthenticatedUser(user.getId(), user.getEmail(), user.getPasswordHash(),
+                List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name())));
     }
 }

@@ -4,10 +4,13 @@ import com.platform.lifecycle.app.PostQuestionCommand;
 import com.platform.lifecycle.app.QuestionPostingService;
 import com.platform.lifecycle.web.dto.PostQuestionRequest;
 import com.platform.lifecycle.web.dto.PostQuestionResponse;
+import com.platform.shared.security.CurrentUser;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,9 +28,11 @@ public class QuestionController {
     }
 
     @PostMapping
-    public ResponseEntity<PostQuestionResponse> post(@Valid @RequestBody PostQuestionRequest request) {
+    public ResponseEntity<PostQuestionResponse> post(
+            @Valid @RequestBody PostQuestionRequest request, @AuthenticationPrincipal Jwt jwt) {
+        UUID studentId = CurrentUser.id(jwt);
         UUID id = posting.post(new PostQuestionCommand(
-                request.studentId(), request.subject(), request.title(), request.body(), request.deadlineAt()));
+                studentId, request.subject(), request.title(), request.body(), request.deadlineAt()));
         return ResponseEntity.status(HttpStatus.CREATED).body(new PostQuestionResponse(id));
     }
 }

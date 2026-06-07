@@ -87,4 +87,38 @@ public class JdbcQuestionRepository implements QuestionRepository {
                 Long.class);
         return newVersion.stream().findFirst();
     }
+
+    @Override
+    public Optional<ClaimedRow> claimNextClaimable(String subject, UUID expertId, int leaseMinutes) {
+        // Work-queue claim (master-design 6.2): the candidate CTE locks exactly one claimable row with
+        // FOR UPDATE SKIP LOCKED, so two concurrent claimers never select the same row; the UPDATE flips
+        // that row to CLAIMED with a fresh lease in the same statement. 0 rows -> nothing was claimable.
+        // The candidate filter and sort are served by idx_questions_claimable (subject, priority DESC,
+        // created_at ASC) WHERE state = 'CLAIMABLE'.
+        List<ClaimedRow> claimed = jdbc.query("""
+                WITH candidate AS (
+                    SELECT id FROM questions
+                    WHERE state = 'CLAIMABLE' AND subject = :subject AND deadline_at > now()
+                    ORDER BY priority DESC, created_at ASC
+                    FOR UPDATE SKIP LOCKED
+                    LIMIT 1
+                )
+                UPDATE questions
+                SET state = 'CLAIMED', claimed_by = :expertId, claimed_at = now(),
+                    claim_expires_at = now() + make_interval(mins => :leaseMinutes), version = version + 1
+                WHERE id IN (SELECT id FROM candidate)
+                RETURNING id, subject, claimed_by, claim_expires_at, version
+                """,
+                new MapSqlParameterSource()
+                        .addValue("subject", subject)
+                        .addValue("expertId", expertId)
+                        .addValue("leaseMinutes", leaseMinutes),
+                (rs, rowNum) -> new ClaimedRow(
+                        rs.getObject("id", UUID.class),
+                        rs.getString("subject"),
+                        rs.getObject("claimed_by", UUID.class),
+                        rs.getObject("claim_expires_at", OffsetDateTime.class).toInstant(),
+                        rs.getLong("version")));
+        return claimed.stream().findFirst();
+    }
 }
