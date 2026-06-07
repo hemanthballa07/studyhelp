@@ -25,5 +25,8 @@ public abstract class PostgresContainerSupport {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
+        // Tests drive the outbox relay explicitly; disable the background scheduler so assertions on
+        // unpublished rows stay deterministic.
+        registry.add("platform.outbox.relay.enabled", () -> "false");
     }
 }
