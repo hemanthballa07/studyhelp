@@ -31,10 +31,13 @@ public class SearchService {
     public void indexQuestion(UUID questionId, String subject, String title, String body) {
         repo.upsert(questionId, subject, title, body);
         String payload = toJson(new ContentIndexed(questionId));
+        // ContentIndexed is pre-emptive for Slice 10 (pgvector embedding consumer); no handler
+        // exists yet, so the relay marks these rows published without a consumer doing work.
         outbox.append(new OutboxEvent(
                 UUID.randomUUID(), questionId, "Question", ContentIndexed.TYPE, payload, clock.instant()));
     }
 
+    @Transactional
     public void touchIndexed(UUID questionId) {
         repo.touchIndexed(questionId);
     }

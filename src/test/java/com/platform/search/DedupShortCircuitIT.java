@@ -9,6 +9,7 @@ import com.platform.search.app.SearchService;
 import com.platform.support.PostgresContainerSupport;
 import java.time.Instant;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -28,6 +29,11 @@ class DedupShortCircuitIT extends PostgresContainerSupport {
 
     @Autowired
     JdbcTemplate jdbc;
+
+    @BeforeEach
+    void clearCorpus() {
+        jdbc.execute("DELETE FROM corpus_index");
+    }
 
     @Test
     void nearDuplicateShortCircuitsToDelivered() {

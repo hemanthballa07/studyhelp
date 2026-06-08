@@ -44,6 +44,9 @@ public class JdbcSearchRepository implements SearchRepository {
 
     @Override
     public List<UUID> findDuplicates(UUID questionId, String subject, String title, String body, float threshold) {
+        // ts_rank without @@ intentionally allows partial-match scoring so near-duplicates are
+        // caught even when candidate and incoming question share most but not all lexemes.
+        // Trade-off: threshold 0.1 is calibrated for small corpora and must be revisited at scale.
         String combined = title + " " + body;
         return jdbc.query("""
                 SELECT question_id
