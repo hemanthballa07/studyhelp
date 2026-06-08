@@ -1,6 +1,7 @@
 package com.platform.lifecycle.domain;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -39,4 +40,23 @@ public interface QuestionRepository {
      * #applyTransition} version guard.
      */
     Optional<ClaimedRow> claimNextClaimable(String subject, UUID expertId, int leaseMinutes);
+
+    /** Start work: CLAIMED -> IN_PROGRESS, only for the owner under a live lease. True if it transitioned. */
+    boolean startWork(UUID id, UUID expertId);
+
+    /**
+     * Conditional submit (master-design 6.3): IN_PROGRESS -> SUBMITTED only while {@code expertId} owns
+     * the claim and the lease is still valid. False (0 rows) means the submit is stale (no ghost delivery).
+     */
+    boolean submitIfOwned(UUID id, UUID expertId);
+
+    /**
+     * Expire up to {@code batchSize} overdue leases (master-design 6.4): CLAIMED/IN_PROGRESS rows with
+     * {@code claim_expires_at <= now()} are grabbed with {@code FOR UPDATE SKIP LOCKED} and flipped to
+     * CLAIM_EXPIRED in one statement, so concurrent sweepers take disjoint rows. Returns the expired rows.
+     */
+    List<ExpiredLease> expireLeasedBatch(int batchSize);
+
+    /** Re-open an expired question: CLAIM_EXPIRED -> CLAIMABLE, clearing the claim fields. */
+    boolean reopenExpired(UUID id);
 }

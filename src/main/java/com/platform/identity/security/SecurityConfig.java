@@ -77,6 +77,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/claims/**").hasRole("EXPERT")
                         .requestMatchers("/api/experts/**").hasRole("EXPERT")
+                        .requestMatchers("/api/answers/**").hasRole("EXPERT")
                         .anyRequest().authenticated())
                 // Stateless JWT resource server: auth is the bearer token, not a session cookie, so
                 // there is no CSRF vector here to protect against.

@@ -28,5 +28,7 @@ public abstract class PostgresContainerSupport {
         // Tests drive the outbox relay explicitly; disable the background scheduler so assertions on
         // unpublished rows stay deterministic.
         registry.add("platform.outbox.relay.enabled", () -> "false");
+        // Likewise disable the SLA sweep scheduler so it cannot race tests that seed expired leases.
+        registry.add("platform.sweep.enabled", () -> "false");
     }
 }
