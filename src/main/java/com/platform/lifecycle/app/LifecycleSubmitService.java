@@ -3,6 +3,7 @@ package com.platform.lifecycle.app;
 import com.platform.lifecycle.domain.QuestionRepository;
 import com.platform.shared.claim.SubmitOutcome;
 import com.platform.shared.claim.SubmitPort;
+import com.platform.shared.claim.SubmitResult;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
  * each in one transaction with its append-only audit row. The submit emits no cross-context event
  * itself; the expert portal publishes {@code AnswerSubmitted} only when this returns
  * {@link SubmitOutcome#SUBMITTED}, so a stale submit can never trigger a downstream (payout) effect.
+ * The returned {@link SubmitResult} carries the subject code so the portal can populate the event
+ * without a cross-context query.
  */
 @Service
 public class LifecycleSubmitService implements SubmitPort {
@@ -39,11 +42,13 @@ public class LifecycleSubmitService implements SubmitPort {
 
     @Override
     @Transactional
-    public SubmitOutcome submit(UUID expertId, UUID questionId) {
+    public SubmitResult submit(UUID expertId, UUID questionId) {
+        // fetch subject before the conditional UPDATE; subject never changes, so TOCTOU is not a concern
+        String subject = questions.find(questionId).map(s -> s.subject()).orElse(null);
         if (!questions.submitIfOwned(questionId, expertId)) {
-            return SubmitOutcome.STALE;
+            return new SubmitResult(SubmitOutcome.STALE, null);
         }
         questions.appendEvent(UUID.randomUUID(), questionId, "QuestionSubmitted", IN_PROGRESS, SUBMITTED, "{}");
-        return SubmitOutcome.SUBMITTED;
+        return new SubmitResult(SubmitOutcome.SUBMITTED, subject);
     }
 }

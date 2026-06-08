@@ -6,6 +6,7 @@ import com.platform.expertportal.domain.AnswerRepository;
 import com.platform.expertportal.event.AnswerSubmitted;
 import com.platform.shared.claim.SubmitOutcome;
 import com.platform.shared.claim.SubmitPort;
+import com.platform.shared.claim.SubmitResult;
 import com.platform.shared.outbox.OutboxEvent;
 import com.platform.shared.outbox.OutboxStore;
 import java.time.Clock;
@@ -47,7 +48,8 @@ public class AnswerService {
 
     @Transactional
     public AnswerResult submit(UUID expertId, UUID questionId, String body) {
-        boolean stale = submitPort.submit(expertId, questionId) == SubmitOutcome.STALE;
+        SubmitResult result = submitPort.submit(expertId, questionId);
+        boolean stale = result.outcome() == SubmitOutcome.STALE;
         UUID answerId = UUID.randomUUID();
         answers.insert(answerId, questionId, expertId, body, stale);
         if (stale) {
@@ -57,7 +59,8 @@ public class AnswerService {
                     expertId, questionId, answerId);
         } else {
             outbox.append(new OutboxEvent(UUID.randomUUID(), answerId, AGGREGATE_TYPE, AnswerSubmitted.TYPE,
-                    toJson(new AnswerSubmitted(answerId, questionId, expertId)), clock.instant()));
+                    toJson(new AnswerSubmitted(answerId, questionId, expertId, body, result.subjectCode())),
+                    clock.instant()));
         }
         return new AnswerResult(answerId, stale);
     }

@@ -59,10 +59,12 @@ public class JdbcQuestionRepository implements QuestionRepository {
 
     @Override
     public Optional<QuestionSnapshot> find(UUID id) {
-        return jdbc.query("SELECT state::text AS state, version FROM questions WHERE id = :id",
+        return jdbc.query("SELECT state::text AS state, version, subject FROM questions WHERE id = :id",
                         new MapSqlParameterSource("id", id),
                         (rs, rowNum) -> new QuestionSnapshot(
-                                QuestionState.valueOf(rs.getString("state")), rs.getLong("version")))
+                                QuestionState.valueOf(rs.getString("state")),
+                                rs.getLong("version"),
+                                rs.getString("subject")))
                 .stream()
                 .findFirst();
     }
