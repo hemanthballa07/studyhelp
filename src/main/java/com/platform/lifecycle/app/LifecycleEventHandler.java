@@ -60,7 +60,11 @@ public class LifecycleEventHandler implements EventHandler {
     @Override
     public void handle(OutboxEvent event) {
         switch (event.eventType()) {
-            case QuestionPosted.TYPE -> routing.route(event.aggregateId(), textField(event, "subject"));
+            case QuestionPosted.TYPE -> routing.route(
+                    event.aggregateId(),
+                    textField(event, "subject"),
+                    textField(event, "title"),
+                    textField(event, "body"));
             case ENTITLEMENT_CHANGED -> entitlements.upsert(event.aggregateId(), arrayField(event, "allowedFeatures"));
             case ANSWER_SUBMITTED -> transitionSimple(event, "questionId",
                     QuestionState.SUBMITTED, QuestionState.IN_REVIEW, "ReviewStarted", "{}", false);
