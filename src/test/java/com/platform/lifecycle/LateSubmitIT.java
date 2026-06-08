@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.platform.shared.claim.SubmitOutcome;
 import com.platform.shared.claim.SubmitPort;
+import com.platform.shared.claim.SubmitResult;
 import com.platform.support.PostgresContainerSupport;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -31,9 +32,9 @@ class LateSubmitIT extends PostgresContainerSupport {
         UUID expert = UUID.randomUUID();
         UUID questionId = seed("IN_PROGRESS", expert, true);
 
-        SubmitOutcome outcome = submitPort.submit(expert, questionId);
+        SubmitResult result = submitPort.submit(expert, questionId);
 
-        assertThat(outcome).isEqualTo(SubmitOutcome.SUBMITTED);
+        assertThat(result.outcome()).isEqualTo(SubmitOutcome.SUBMITTED);
         assertThat(stateOf(questionId)).isEqualTo("SUBMITTED");
     }
 
@@ -42,9 +43,9 @@ class LateSubmitIT extends PostgresContainerSupport {
         UUID expert = UUID.randomUUID();
         UUID questionId = seed("IN_PROGRESS", expert, false);
 
-        SubmitOutcome outcome = submitPort.submit(expert, questionId);
+        SubmitResult result = submitPort.submit(expert, questionId);
 
-        assertThat(outcome).as("a ghost delivery after lease expiry is blocked").isEqualTo(SubmitOutcome.STALE);
+        assertThat(result.outcome()).as("a ghost delivery after lease expiry is blocked").isEqualTo(SubmitOutcome.STALE);
         assertThat(stateOf(questionId)).isEqualTo("IN_PROGRESS");
     }
 
@@ -54,9 +55,9 @@ class LateSubmitIT extends PostgresContainerSupport {
         UUID other = UUID.randomUUID();
         UUID questionId = seed("IN_PROGRESS", owner, true);
 
-        SubmitOutcome outcome = submitPort.submit(other, questionId);
+        SubmitResult result = submitPort.submit(other, questionId);
 
-        assertThat(outcome).isEqualTo(SubmitOutcome.STALE);
+        assertThat(result.outcome()).isEqualTo(SubmitOutcome.STALE);
         assertThat(stateOf(questionId)).isEqualTo("IN_PROGRESS");
     }
 

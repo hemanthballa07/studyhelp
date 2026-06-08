@@ -3,36 +3,52 @@ package com.platform.lifecycle.app;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.platform.lifecycle.domain.QuestionRepository;
+import com.platform.lifecycle.domain.QuestionSnapshot;
+import com.platform.lifecycle.domain.QuestionState;
 import com.platform.lifecycle.domain.StudentEntitlementRepository;
+import com.platform.lifecycle.event.QuestionDelivered;
 import com.platform.lifecycle.event.QuestionPosted;
+import com.platform.lifecycle.event.QuestionRejected;
 import com.platform.shared.dispatcher.EventHandler;
 import com.platform.shared.outbox.OutboxEvent;
+import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 /**
- * Lifecycle's consumer of dispatched domain events: the first real cross-context consumer on the
- * Slice 3 outbox + dispatcher. The dispatcher records idempotency in {@code processed_events} keyed
- * on this consumer name, so a redelivered event is a no-op before {@link #handle} runs; the routing
- * drive is additionally guarded by question version and the entitlement upsert is idempotent. Event
- * types lifecycle does not consume are ignored.
+ * Lifecycle's consumer of dispatched domain events. The dispatcher records idempotency in
+ * {@code processed_events} keyed on this consumer name, so a redelivered event is a no-op before
+ * {@link #handle} runs. Handles QuestionPosted, EntitlementChanged (Slices 3/4) and four QC-driven
+ * transitions (Slice 7). Event types not listed here are intentionally ignored.
  */
 @Component
 public class LifecycleEventHandler implements EventHandler {
 
     private static final String CONSUMER = "lifecycle";
-    // Must match identity's EntitlementChanged.TYPE wire string. The two are deliberately not coupled
-    // by import (cross-context boundary); a drift on either side breaks EntitlementProjectionIT and
-    // EntitlementEventsIT, which both pin this literal.
+    // Must match identity's EntitlementChanged.TYPE wire string. Cross-context boundary: no import.
     private static final String ENTITLEMENT_CHANGED = "EntitlementChanged";
+    // Must match QC's wire strings. Cross-context boundary: no import of qc.* types.
+    private static final String ANSWER_SUBMITTED = "AnswerSubmitted";
+    private static final String QC_PASSED = "QcPassed";
+    private static final String QC_FAILED = "QcFailed";
+    private static final String REVISION_REQUESTED = "RevisionRequested";
 
     private final QuestionRoutingService routing;
     private final StudentEntitlementRepository entitlements;
+    private final QuestionRepository questions;
+    private final LifecycleTransitionService transitions;
     private final ObjectMapper objectMapper;
 
     public LifecycleEventHandler(
-            QuestionRoutingService routing, StudentEntitlementRepository entitlements, ObjectMapper objectMapper) {
+            QuestionRoutingService routing,
+            StudentEntitlementRepository entitlements,
+            QuestionRepository questions,
+            LifecycleTransitionService transitions,
+            ObjectMapper objectMapper) {
         this.routing = routing;
         this.entitlements = entitlements;
+        this.questions = questions;
+        this.transitions = transitions;
         this.objectMapper = objectMapper;
     }
 
@@ -46,10 +62,50 @@ public class LifecycleEventHandler implements EventHandler {
         switch (event.eventType()) {
             case QuestionPosted.TYPE -> routing.route(event.aggregateId(), textField(event, "subject"));
             case ENTITLEMENT_CHANGED -> entitlements.upsert(event.aggregateId(), arrayField(event, "allowedFeatures"));
-            default -> {
-                // Event types lifecycle does not consume (including QuestionRouted, which it emits
-                // itself) are intentionally ignored.
+            case ANSWER_SUBMITTED -> transitionSimple(event, "questionId",
+                    QuestionState.SUBMITTED, QuestionState.IN_REVIEW, "ReviewStarted", "{}", false);
+            case QC_PASSED -> {
+                UUID questionId = uuidField(event, "questionId");
+                QuestionSnapshot snap = requireSnapshot(questionId, QC_PASSED);
+                transitions.transition(questionId, QuestionState.IN_REVIEW, QuestionState.DELIVERED,
+                        snap.version(), QuestionDelivered.TYPE, toJson(new QuestionDelivered(questionId)), true);
             }
+            case QC_FAILED -> {
+                UUID questionId = uuidField(event, "questionId");
+                QuestionSnapshot snap = requireSnapshot(questionId, QC_FAILED);
+                transitions.transition(questionId, QuestionState.IN_REVIEW, QuestionState.REJECTED,
+                        snap.version(), QuestionRejected.TYPE, toJson(new QuestionRejected(questionId)), true);
+            }
+            case REVISION_REQUESTED -> transitionSimple(event, "questionId",
+                    QuestionState.IN_REVIEW, QuestionState.REVISION_REQUESTED, "AnswerRevisionRequested", "{}", false);
+            default -> {
+                // Event types lifecycle does not consume are intentionally ignored.
+            }
+        }
+    }
+
+    private void transitionSimple(OutboxEvent event, String questionIdField,
+            QuestionState from, QuestionState to, String eventType, String payload, boolean emitToOutbox) {
+        UUID questionId = uuidField(event, questionIdField);
+        QuestionSnapshot snap = requireSnapshot(questionId, event.eventType());
+        transitions.transition(questionId, from, to, snap.version(), eventType, payload, emitToOutbox);
+    }
+
+    private QuestionSnapshot requireSnapshot(UUID questionId, String eventType) {
+        return questions.find(questionId)
+                .orElseThrow(() -> new IllegalStateException(
+                        eventType + " for unknown question " + questionId + "; data inconsistency"));
+    }
+
+    private UUID uuidField(OutboxEvent event, String field) {
+        return UUID.fromString(textField(event, field));
+    }
+
+    private String toJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("failed to serialize lifecycle event payload", ex);
         }
     }
 
@@ -72,7 +128,6 @@ public class LifecycleEventHandler implements EventHandler {
     private String arrayField(OutboxEvent event, String field) {
         JsonNode node = payload(event).get(field);
         if (node == null || !node.isArray()) {
-            // Fail loud rather than overwrite the projection with an empty array on a malformed event.
             throw new IllegalStateException(
                     "event " + event.eventId() + ": field '" + field + "' missing or not a JSON array");
         }

@@ -19,7 +19,8 @@ public interface SubmitPort {
 
     /**
      * Conditionally submit (master-design 6.3): IN_PROGRESS -> SUBMITTED only while the caller owns the
-     * claim and the lease is still valid. {@link SubmitOutcome#STALE} when the guard matches no row.
+     * claim and the lease is still valid. Returns {@link SubmitOutcome#STALE} when the guard matches no
+     * row; {@link SubmitOutcome#SUBMITTED} with the question's subject code when the transition succeeded.
      */
-    SubmitOutcome submit(UUID expertId, UUID questionId);
+    SubmitResult submit(UUID expertId, UUID questionId);
 }
