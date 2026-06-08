@@ -39,8 +39,8 @@ public class PaymentsEventHandler implements EventHandler {
             return;
         }
         JsonNode payload = parse(event);
-        UUID questionId = UUID.fromString(payload.get("questionId").asText());
-        UUID expertId   = UUID.fromString(payload.get("expertId").asText());
+        UUID questionId = UUID.fromString(requireText(event, payload, "questionId"));
+        UUID expertId   = UUID.fromString(requireText(event, payload, "expertId"));
         paymentsService.accrueEarning(event.eventId(), questionId, expertId, EXPERT_AMOUNT_CENTS);
     }
 
@@ -50,5 +50,14 @@ public class PaymentsEventHandler implements EventHandler {
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("malformed payload on event " + event.eventId(), ex);
         }
+    }
+
+    private String requireText(OutboxEvent event, JsonNode payload, String field) {
+        JsonNode node = payload.get(field);
+        if (node == null || node.isNull()) {
+            throw new IllegalStateException(
+                    "event " + event.eventId() + ": required field '" + field + "' missing");
+        }
+        return node.asText();
     }
 }
