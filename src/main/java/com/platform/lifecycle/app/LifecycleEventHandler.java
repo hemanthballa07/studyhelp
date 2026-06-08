@@ -66,9 +66,10 @@ public class LifecycleEventHandler implements EventHandler {
                     QuestionState.SUBMITTED, QuestionState.IN_REVIEW, "ReviewStarted", "{}", false);
             case QC_PASSED -> {
                 UUID questionId = uuidField(event, "questionId");
+                UUID expertId   = uuidField(event, "expertId");
                 QuestionSnapshot snap = requireSnapshot(questionId, QC_PASSED);
                 transitions.transition(questionId, QuestionState.IN_REVIEW, QuestionState.DELIVERED,
-                        snap.version(), QuestionDelivered.TYPE, toJson(new QuestionDelivered(questionId)), true);
+                        snap.version(), QuestionDelivered.TYPE, toJson(new QuestionDelivered(questionId, expertId)), true);
             }
             case QC_FAILED -> {
                 UUID questionId = uuidField(event, "questionId");
