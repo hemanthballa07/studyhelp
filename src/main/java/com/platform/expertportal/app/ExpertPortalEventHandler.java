@@ -28,6 +28,8 @@ public class ExpertPortalEventHandler implements EventHandler {
     private static final String QUESTION_ROUTED = "QuestionRouted";
     private static final String QUESTION_CLAIMED = "QuestionClaimed";
     private static final String QUESTION_EXPIRED = "QuestionExpired";
+    // Must match ai.event.AnswerAbstained.TYPE. Cross-context boundary: no import of ai.* types.
+    private static final String ANSWER_ABSTAINED = "AnswerAbstained";
 
     private final ClaimableQueueRepository queue;
     private final ObjectMapper objectMapper;
@@ -48,6 +50,15 @@ public class ExpertPortalEventHandler implements EventHandler {
             // A routed question is claimable, and an expired claim is claimable again: both add it back.
             case QUESTION_ROUTED, QUESTION_EXPIRED -> queue.add(event.aggregateId(), textField(event, "subject"));
             case QUESTION_CLAIMED -> removeFromQueue(event.aggregateId());
+            case ANSWER_ABSTAINED -> {
+                // AI abstained: question was already in the queue from QuestionRouted; re-add is
+                // idempotent via PRIMARY KEY. Handler makes the escalation explicit in the audit log.
+                UUID questionId = event.aggregateId();
+                String subject = textField(event, "subject");
+                log.info("AI abstained for question {}; confirming in expert queue for subject '{}'",
+                        questionId, subject);
+                queue.add(questionId, subject);
+            }
             default -> {
                 // Event types the expert portal does not consume (including the events it emits) are
                 // intentionally ignored.

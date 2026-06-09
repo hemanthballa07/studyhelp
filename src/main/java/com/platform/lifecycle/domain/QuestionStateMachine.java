@@ -31,7 +31,10 @@ public class QuestionStateMachine {
         table.put(QuestionState.POSTED, Set.of(QuestionState.DEDUP_CHECKING));
         table.put(QuestionState.DEDUP_CHECKING, Set.of(QuestionState.ROUTED, QuestionState.DELIVERED));
         table.put(QuestionState.ROUTED, Set.of(QuestionState.CLAIMABLE));
-        table.put(QuestionState.CLAIMABLE, Set.of(QuestionState.CLAIMED));
+        // DELIVERED added for the AI fast-path (Slice 15): AI can deliver directly from CLAIMABLE.
+        // If an expert already claimed it, the version-guarded UPDATE matches 0 rows and the
+        // LifecycleEventHandler logs a no-op — AI lost the race, which is the correct outcome.
+        table.put(QuestionState.CLAIMABLE, Set.of(QuestionState.CLAIMED, QuestionState.DELIVERED));
         table.put(QuestionState.CLAIMED, Set.of(QuestionState.IN_PROGRESS, QuestionState.CLAIM_EXPIRED));
         table.put(QuestionState.IN_PROGRESS, Set.of(QuestionState.SUBMITTED, QuestionState.CLAIM_EXPIRED));
         table.put(QuestionState.SUBMITTED, Set.of(QuestionState.IN_REVIEW));

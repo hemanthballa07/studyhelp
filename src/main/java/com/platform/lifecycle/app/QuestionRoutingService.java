@@ -68,13 +68,13 @@ public class QuestionRoutingService {
         }
 
         version = transitions.transition(questionId, QuestionState.DEDUP_CHECKING, QuestionState.ROUTED,
-                version, QuestionRouted.TYPE, routedPayload(questionId, subject), true);
+                version, QuestionRouted.TYPE, routedPayload(questionId, subject, title, body), true);
         transitions.transition(questionId, QuestionState.ROUTED, QuestionState.CLAIMABLE,
                 version, "QuestionOpenedForClaim", "{}", false);
     }
 
-    private String routedPayload(UUID questionId, String subject) {
-        return toJson(new QuestionRouted(questionId, subject));
+    private String routedPayload(UUID questionId, String subject, String title, String body) {
+        return toJson(new QuestionRouted(questionId, subject, title, body));
     }
 
     private String toJson(Object value) {

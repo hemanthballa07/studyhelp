@@ -13,6 +13,8 @@ import com.platform.lifecycle.event.QuestionRejected;
 import com.platform.shared.dispatcher.EventHandler;
 import com.platform.shared.outbox.OutboxEvent;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -24,6 +26,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class LifecycleEventHandler implements EventHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(LifecycleEventHandler.class);
+
     private static final String CONSUMER = "lifecycle";
     // Must match identity's EntitlementChanged.TYPE wire string. Cross-context boundary: no import.
     private static final String ENTITLEMENT_CHANGED = "EntitlementChanged";
@@ -32,6 +36,8 @@ public class LifecycleEventHandler implements EventHandler {
     private static final String QC_PASSED = "QcPassed";
     private static final String QC_FAILED = "QcFailed";
     private static final String REVISION_REQUESTED = "RevisionRequested";
+    // Must match ai.event.AnswerProduced.TYPE. Cross-context boundary: no import of ai.* types.
+    private static final String ANSWER_PRODUCED = "AnswerProduced";
 
     private final QuestionRoutingService routing;
     private final StudentEntitlementRepository entitlements;
@@ -83,6 +89,18 @@ public class LifecycleEventHandler implements EventHandler {
             }
             case REVISION_REQUESTED -> transitionSimple(event, "questionId",
                     QuestionState.IN_REVIEW, QuestionState.REVISION_REQUESTED, "AnswerRevisionRequested", "{}", false);
+            case ANSWER_PRODUCED -> {
+                UUID questionId = uuidField(event, "questionId");
+                QuestionSnapshot snap = requireSnapshot(questionId, ANSWER_PRODUCED);
+                if (snap.state() == QuestionState.CLAIMABLE) {
+                    transitions.transition(questionId, QuestionState.CLAIMABLE, QuestionState.DELIVERED,
+                            snap.version(), QuestionDelivered.TYPE,
+                            toJson(new QuestionDelivered(questionId, null)), true);
+                } else {
+                    log.info("AnswerProduced for {} but state is {}; AI answer superseded by expert work, no-op",
+                            questionId, snap.state());
+                }
+            }
             default -> {
                 // Event types lifecycle does not consume are intentionally ignored.
             }

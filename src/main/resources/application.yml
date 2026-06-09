@@ -28,6 +28,17 @@ spring:
     template:
       observation-enabled: true
 
+platform:
+  ai:
+    confidence:
+      tau-high: 0.82
+      tau-low: 0.65
+      weights:
+        groundedness: 0.35
+        consistency: 0.20
+        structural: 0.20
+        domain-verifier: 0.25
+
 management:
   endpoints:
     web:

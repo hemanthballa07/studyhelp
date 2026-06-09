@@ -21,7 +21,7 @@ class QuestionStateMachineTest {
             Map.entry(QuestionState.POSTED, Set.of(QuestionState.DEDUP_CHECKING)),
             Map.entry(QuestionState.DEDUP_CHECKING, Set.of(QuestionState.ROUTED, QuestionState.DELIVERED)),
             Map.entry(QuestionState.ROUTED, Set.of(QuestionState.CLAIMABLE)),
-            Map.entry(QuestionState.CLAIMABLE, Set.of(QuestionState.CLAIMED)),
+            Map.entry(QuestionState.CLAIMABLE, Set.of(QuestionState.CLAIMED, QuestionState.DELIVERED)),
             Map.entry(QuestionState.CLAIMED, Set.of(QuestionState.IN_PROGRESS, QuestionState.CLAIM_EXPIRED)),
             Map.entry(QuestionState.IN_PROGRESS, Set.of(QuestionState.SUBMITTED, QuestionState.CLAIM_EXPIRED)),
             Map.entry(QuestionState.SUBMITTED, Set.of(QuestionState.IN_REVIEW)),
