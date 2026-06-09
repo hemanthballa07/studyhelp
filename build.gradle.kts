@@ -44,13 +44,27 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
-// `test` runs everything except the ArchUnit conformance suite...
+// `test` runs everything except the ArchUnit conformance suite and the offline eval gate.
 tasks.named<Test>("test") {
     useJUnitPlatform()
-    filter { excludeTestsMatching("com.platform.arch.*") }
+    filter {
+        excludeTestsMatching("com.platform.arch.*")
+        excludeTestsMatching("com.platform.eval.*")
+    }
 }
 
 // ...which gets its own task so CI can run `./gradlew test archTest`.
+// `evalTest` runs the offline gold-set quality gate (§11.1); CI fails on metric regression.
+val evalTest = tasks.register<Test>("evalTest") {
+    description = "Runs offline gold-set evaluation; fails if guarded metrics regress past threshold."
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform()
+    filter { includeTestsMatching("com.platform.eval.*") }
+    shouldRunAfter(tasks.named("test"))
+}
+
 val archTest = tasks.register<Test>("archTest") {
     description = "Runs ArchUnit architecture-conformance tests (package-by-context boundaries)."
     group = "verification"
