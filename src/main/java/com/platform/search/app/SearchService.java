@@ -12,7 +12,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,10 +33,16 @@ public class SearchService {
         this.embeddingPort = embeddingPort;
     }
 
-    @Transactional
+    // Embedding is computed before the transaction opens so a transient model failure does not
+    // roll back the FTS upsert, and the connection is not held during remote inference.
     public void indexQuestion(UUID questionId, String subject, String title, String body) {
-        repo.upsert(questionId, subject, title, body);
         float[] embedding = embeddingPort.embed(title + " " + body);
+        persistIndex(questionId, subject, title, body, embedding);
+    }
+
+    @Transactional
+    public void persistIndex(UUID questionId, String subject, String title, String body, float[] embedding) {
+        repo.upsert(questionId, subject, title, body);
         repo.upsertChunk(questionId, title + " " + body, embedding);
         String payload = toJson(new ContentIndexed(questionId));
         outbox.append(new OutboxEvent(
@@ -59,10 +64,15 @@ public class SearchService {
         return repo.search(query, limit);
     }
 
-    @Transactional(readOnly = true)
+    // Embedding computed before the transaction so the connection is not held during model inference.
     public List<UUID> hybridSearch(String query, int limit) {
-        List<UUID> fts = repo.search(query, limit);
         float[] queryEmbedding = embeddingPort.embed(query);
+        return queryHybrid(query, queryEmbedding, limit);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UUID> queryHybrid(String query, float[] queryEmbedding, int limit) {
+        List<UUID> fts = repo.search(query, limit);
         List<UUID> vector = repo.findSimilar(queryEmbedding, limit);
 
         Map<UUID, Double> scores = new HashMap<>();
@@ -77,7 +87,7 @@ public class SearchService {
                 .sorted(Map.Entry.<UUID, Double>comparingByValue().reversed())
                 .limit(limit)
                 .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     private String toJson(Object value) {

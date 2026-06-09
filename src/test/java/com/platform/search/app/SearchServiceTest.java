@@ -44,8 +44,10 @@ class SearchServiceTest {
         SearchService svc = new SearchService(repo, outbox, clock, objectMapper, embeddingPort);
 
         UUID id = UUID.randomUUID();
+        // indexQuestion computes embedding first (outside TX), then delegates persistIndex
         svc.indexQuestion(id, "math", "What is 2+2", "Basic arithmetic");
 
+        verify(embeddingPort).embed("What is 2+2 Basic arithmetic");
         verify(repo).upsert(id, "math", "What is 2+2", "Basic arithmetic");
         verify(repo).upsertChunk(eq(id), any(), any());
         verify(outbox).append(any());

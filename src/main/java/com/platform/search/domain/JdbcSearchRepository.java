@@ -83,11 +83,13 @@ public class JdbcSearchRepository implements SearchRepository {
 
     @Override
     public void upsertChunk(UUID questionId, String text, float[] embedding) {
-        jdbc.update("DELETE FROM corpus_chunk WHERE question_id = :questionId",
-                new MapSqlParameterSource("questionId", questionId));
         jdbc.update("""
                 INSERT INTO corpus_chunk (id, question_id, chunk_text, embedding)
                 VALUES (:id, :questionId, :text, CAST(:embedding AS vector))
+                ON CONFLICT (question_id) DO UPDATE
+                    SET chunk_text  = EXCLUDED.chunk_text,
+                        embedding   = EXCLUDED.embedding,
+                        indexed_at  = now()
                 """,
                 new MapSqlParameterSource()
                         .addValue("id", UUID.randomUUID())
