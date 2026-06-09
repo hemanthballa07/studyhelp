@@ -54,3 +54,20 @@ jobs:
           DB_PASSWORD: studyhelp
           REDIS_URL: redis://localhost:6379
         run: ./gradlew test archTest
+
+      - name: Run gold-set eval (CI quality gate)
+        if: steps.gradle.outputs.exists == 'true'
+        env:
+          DB_URL: postgresql://localhost:5432/studyhelp
+          DB_USER: studyhelp
+          DB_PASSWORD: studyhelp
+          REDIS_URL: redis://localhost:6379
+        run: ./gradlew evalTest
+
+      - name: Upload eval report
+        if: steps.gradle.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: build/reports/eval/eval-report.json
+          if-no-files-found: warn
