@@ -10,6 +10,8 @@ import com.platform.shared.claim.ClaimPort;
 import com.platform.shared.claim.ClaimedQuestion;
 import com.platform.shared.outbox.OutboxEvent;
 import com.platform.shared.outbox.OutboxStore;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.util.Optional;
 import java.util.UUID;
@@ -35,15 +37,20 @@ public class ExpertClaimService {
     private final OutboxStore outbox;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final Counter claimWon;
+    private final Counter claimSkipped;
 
     public ExpertClaimService(ClaimPort claimPort, ExpertSubjectRepository subjects,
-            ClaimAttemptRepository attempts, OutboxStore outbox, ObjectMapper objectMapper, Clock clock) {
+            ClaimAttemptRepository attempts, OutboxStore outbox, ObjectMapper objectMapper,
+            Clock clock, MeterRegistry meterRegistry) {
         this.claimPort = claimPort;
         this.subjects = subjects;
         this.attempts = attempts;
         this.outbox = outbox;
         this.objectMapper = objectMapper;
         this.clock = clock;
+        this.claimWon = Counter.builder("expertportal.claim.count").tag("outcome", "WON").register(meterRegistry);
+        this.claimSkipped = Counter.builder("expertportal.claim.count").tag("outcome", "SKIPPED").register(meterRegistry);
     }
 
     @Transactional
@@ -56,6 +63,7 @@ public class ExpertClaimService {
 
         UUID attemptId = UUID.randomUUID();
         ClaimOutcome outcome = claimed.isPresent() ? ClaimOutcome.WON : ClaimOutcome.SKIPPED;
+        (outcome == ClaimOutcome.WON ? claimWon : claimSkipped).increment();
         UUID questionId = claimed.map(ClaimedQuestion::questionId).orElse(null);
         attempts.record(attemptId, expertId, subject, outcome.name(), questionId);
 

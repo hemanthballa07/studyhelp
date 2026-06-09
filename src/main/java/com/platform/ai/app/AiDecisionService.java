@@ -7,6 +7,8 @@ import com.platform.ai.event.AnswerAbstained;
 import com.platform.ai.event.AnswerProduced;
 import com.platform.shared.outbox.OutboxEvent;
 import com.platform.shared.outbox.OutboxStore;
+import com.platform.shared.telemetry.PipelineMetrics;
+import io.micrometer.observation.annotation.Observed;
 import java.time.Instant;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,6 +29,7 @@ public class AiDecisionService {
     private final VerificationResultMapper mapper;
     private final OutboxStore outbox;
     private final ObjectMapper objectMapper;
+    private final PipelineMetrics pipelineMetrics;
     private final double tauHigh;
     private final double tauLow;
     private final double wGroundedness;
@@ -38,6 +41,7 @@ public class AiDecisionService {
             VerificationResultMapper mapper,
             OutboxStore outbox,
             ObjectMapper objectMapper,
+            PipelineMetrics pipelineMetrics,
             @Value("${platform.ai.confidence.tau-high}") double tauHigh,
             @Value("${platform.ai.confidence.tau-low}") double tauLow,
             @Value("${platform.ai.confidence.weights.groundedness}") double wGroundedness,
@@ -47,6 +51,7 @@ public class AiDecisionService {
         this.mapper = mapper;
         this.outbox = outbox;
         this.objectMapper = objectMapper;
+        this.pipelineMetrics = pipelineMetrics;
         this.tauHigh = tauHigh;
         this.tauLow = tauLow;
         this.wGroundedness = wGroundedness;
@@ -55,6 +60,7 @@ public class AiDecisionService {
         this.wMath = wMath;
     }
 
+    @Observed(name = "ai.decide.latency")
     @Transactional
     public DecisionOutcome decide(UUID questionId, VerificationResult result, String subject) {
         double confidence = wGroundedness * result.groundednessScore()
@@ -71,6 +77,7 @@ public class AiDecisionService {
             outcome = DecisionOutcome.ABSTAINED;
         }
 
+        pipelineMetrics.recordDecision(outcome.name());
         mapper.map(result, outcome, confidence);
         emitDecisionEvent(questionId, confidence, outcome, subject);
         return outcome;

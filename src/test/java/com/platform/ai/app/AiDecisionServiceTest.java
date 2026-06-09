@@ -10,6 +10,8 @@ import com.platform.ai.domain.VerificationResult;
 import com.platform.ai.event.AnswerAbstained;
 import com.platform.ai.event.AnswerProduced;
 import com.platform.shared.outbox.OutboxStore;
+import com.platform.shared.telemetry.PipelineMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,6 +42,7 @@ class AiDecisionServiceTest {
     @BeforeEach
     void setUp() {
         svc = new AiDecisionService(mapper, outbox, objectMapper,
+                new PipelineMetrics(new SimpleMeterRegistry()),
                 TAU_HIGH, TAU_LOW, W_G, W_C, W_S, W_M);
     }
 

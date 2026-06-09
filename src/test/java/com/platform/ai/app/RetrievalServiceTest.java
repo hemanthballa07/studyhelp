@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import com.platform.ai.domain.AiCorpusChunk;
 import com.platform.ai.domain.CorpusRepository;
 import com.platform.shared.embedding.EmbeddingPort;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -66,7 +67,7 @@ class RetrievalServiceTest {
         when(repo.findByFts("quadratic formula", 3)).thenReturn(List.of(chunk(A)));
         when(repo.findByVector(vec, 3)).thenReturn(List.of(chunk(A), chunk(B)));
 
-        RetrievalService svc = new RetrievalService(repo, ep);
+        RetrievalService svc = new RetrievalService(repo, ep, new SimpleMeterRegistry());
         List<AiCorpusChunk> result = svc.retrieveTransactional("quadratic formula", vec, 3);
 
         assertThat(result).extracting(AiCorpusChunk::id).containsExactly(A, B);

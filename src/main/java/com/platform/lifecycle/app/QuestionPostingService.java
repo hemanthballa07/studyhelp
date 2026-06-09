@@ -6,6 +6,8 @@ import com.platform.lifecycle.domain.QuestionRepository;
 import com.platform.lifecycle.event.QuestionPosted;
 import com.platform.shared.outbox.OutboxEvent;
 import com.platform.shared.outbox.OutboxStore;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -27,13 +29,18 @@ public class QuestionPostingService {
     private final OutboxStore outbox;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final Counter questionPostedCounter;
 
     public QuestionPostingService(
-            QuestionRepository questions, OutboxStore outbox, ObjectMapper objectMapper, Clock clock) {
+            QuestionRepository questions, OutboxStore outbox, ObjectMapper objectMapper,
+            Clock clock, MeterRegistry meterRegistry) {
         this.questions = questions;
         this.outbox = outbox;
         this.objectMapper = objectMapper;
         this.clock = clock;
+        this.questionPostedCounter = Counter.builder("lifecycle.question.posted")
+                .description("Questions posted by students")
+                .register(meterRegistry);
     }
 
     @Transactional
@@ -50,6 +57,7 @@ public class QuestionPostingService {
         questions.appendEvent(eventId, questionId, QuestionPosted.TYPE, null, POSTED, payload);
         outbox.append(new OutboxEvent(
                 eventId, questionId, AGGREGATE_TYPE, QuestionPosted.TYPE, payload, clock.instant()));
+        questionPostedCounter.increment();
 
         return questionId;
     }

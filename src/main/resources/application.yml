@@ -43,7 +43,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   endpoint:
     health:
       show-details: always
@@ -53,3 +53,20 @@ management:
     enabled: true
     sampling:
       probability: 1.0
+  metrics:
+    distribution:
+      percentiles-histogram:
+        ai.pipeline.latency: true
+        ai.retrieve.latency:  true
+        ai.generate.latency:  true
+        ai.verify.latency:    true
+        ai.decide.latency:    true
+        http.server.requests: true
+      slo:
+        ai.pipeline.latency: 2s, 5s, 8s, 15s
+        ai.retrieve.latency: 1s, 2s, 5s
+        ai.generate.latency: 2s, 5s, 10s
+        ai.verify.latency:   1s, 3s, 8s
+        ai.decide.latency:   100ms, 500ms, 1s
+    tags:
+      application: studyhelp

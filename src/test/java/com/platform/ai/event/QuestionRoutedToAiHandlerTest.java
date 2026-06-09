@@ -18,6 +18,8 @@ import com.platform.ai.domain.CorpusRepository;
 import com.platform.ai.domain.VerificationResult;
 import com.platform.shared.generation.CandidateAnswer;
 import com.platform.shared.outbox.OutboxEvent;
+import com.platform.shared.telemetry.PipelineMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +34,8 @@ class QuestionRoutedToAiHandlerTest {
     private final AiDecisionService decisionService = mock(AiDecisionService.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final QuestionRoutedToAiHandler handler =
-            new QuestionRoutedToAiHandler(repo, generationService, verificationService, decisionService, objectMapper);
+            new QuestionRoutedToAiHandler(repo, generationService, verificationService, decisionService, objectMapper,
+                    new PipelineMetrics(new SimpleMeterRegistry()));
 
     @Test
     void handlesQuestionRoutedEvent_triggersFullPipeline() throws Exception {

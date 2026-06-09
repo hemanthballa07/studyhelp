@@ -14,6 +14,7 @@ import com.platform.shared.math.MathVerifierPort;
 import com.platform.shared.outbox.OutboxEvent;
 import com.platform.shared.outbox.OutboxStore;
 import com.platform.shared.qc.StructuralQcPort;
+import io.micrometer.observation.annotation.Observed;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -71,6 +72,7 @@ public class VerificationService {
      * Runs all 4 signals, persists the result, and emits {@code VerificationCompleted}.
      * Idempotent: returns the existing result if this question was already verified.
      */
+    @Observed(name = "ai.verify.latency")
     @Transactional
     public VerificationResult verify(UUID questionId, String questionText, String subjectCode,
             CandidateAnswer candidate) {
