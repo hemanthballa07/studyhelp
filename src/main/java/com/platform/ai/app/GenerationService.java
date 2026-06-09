@@ -8,7 +8,6 @@ import com.platform.shared.generation.GenerationPort;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Orchestrates the constrained generation pipeline: retrieve top-k evidence,
@@ -36,18 +35,25 @@ public class GenerationService {
 
     /**
      * Retrieves evidence, generates a cited candidate answer, and persists it.
+     * Non-transactional at this level: retrieval runs in its own read-only transaction
+     * (see RetrievalService.retrieve); the persist step is a single atomic INSERT.
+     * Idempotent: returns the existing answer if this question was already generated.
      * The answer is pre-verifier; the verifier runs in Slice 14.
      */
-    @Transactional
     public CandidateAnswer generate(UUID questionId, String questionText) {
+        return generationRepo.findByQuestionId(questionId)
+                .orElseGet(() -> generateAndPersist(questionId, questionText));
+    }
+
+    public CandidateAnswer generateAndPersist(UUID questionId, String questionText) {
         List<AiCorpusChunk> chunks = retrievalService.retrieve(questionText, MAX_CONTEXT_CHUNKS);
 
         List<ContextChunk> context = chunks.stream()
+                .limit(MAX_CONTEXT_CHUNKS)
                 .map(c -> new ContextChunk(c.id(), c.chunkText()))
                 .toList();
 
         CandidateAnswer answer = generationPort.generate(questionText, context);
-
         generationRepo.save(UUID.randomUUID(), questionId, answer);
         return answer;
     }

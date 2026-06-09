@@ -32,9 +32,7 @@ public class JdbcGenerationRepository implements GenerationRepository {
         jdbc.update("""
                 INSERT INTO generations (id, question_id, steps)
                 VALUES (:id, :questionId, CAST(:steps AS jsonb))
-                ON CONFLICT (id) DO UPDATE
-                    SET steps      = EXCLUDED.steps,
-                        created_at = now()
+                ON CONFLICT (question_id) DO NOTHING
                 """,
                 new MapSqlParameterSource()
                         .addValue("id", id)

@@ -45,12 +45,15 @@ class GenerationServiceTest {
 
     @Test
     void contextCapAppliedBeforeGeneration() {
+        // Return MORE than MAX_CONTEXT_CHUNKS to verify the cap is enforced in the service
         when(retrieval.retrieve(anyString(), anyInt())).thenReturn(List.of(
                 new AiCorpusChunk(UUID.randomUUID(), "s", "l", "c1"),
                 new AiCorpusChunk(UUID.randomUUID(), "s", "l", "c2"),
                 new AiCorpusChunk(UUID.randomUUID(), "s", "l", "c3"),
                 new AiCorpusChunk(UUID.randomUUID(), "s", "l", "c4"),
-                new AiCorpusChunk(UUID.randomUUID(), "s", "l", "c5")));
+                new AiCorpusChunk(UUID.randomUUID(), "s", "l", "c5"),
+                new AiCorpusChunk(UUID.randomUUID(), "s", "l", "c6")));
+        when(repo.findByQuestionId(any())).thenReturn(java.util.Optional.empty());
         when(port.generate(anyString(), any())).thenReturn(
                 new CandidateAnswer(List.of(new AnswerStep("ok", List.of(UUID.randomUUID())))));
 
@@ -58,7 +61,7 @@ class GenerationServiceTest {
 
         ArgumentCaptor<List<ContextChunk>> captor = ArgumentCaptor.forClass(List.class);
         verify(port).generate(anyString(), captor.capture());
-        assertThat(captor.getValue()).hasSizeLessThanOrEqualTo(GenerationService.MAX_CONTEXT_CHUNKS);
+        assertThat(captor.getValue()).hasSize(GenerationService.MAX_CONTEXT_CHUNKS);
     }
 
     @Test

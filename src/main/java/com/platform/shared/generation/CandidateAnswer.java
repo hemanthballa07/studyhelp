@@ -5,6 +5,10 @@ import java.util.List;
 /** A candidate answer produced by the generation model, pre-verifier. */
 public record CandidateAnswer(List<AnswerStep> steps) {
 
+    public CandidateAnswer {
+        steps = List.copyOf(steps);
+    }
+
     /** True if any step carries no citations (uncited claim). */
     public boolean hasUncitedClaims() {
         return steps.stream().anyMatch(s -> s.citationChunkIds().isEmpty());

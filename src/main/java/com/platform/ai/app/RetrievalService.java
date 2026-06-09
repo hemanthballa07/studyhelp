@@ -44,7 +44,7 @@ public class RetrievalService {
         return retrieveTransactional(queryText, embedding, topK);
     }
 
-    public List<AiCorpusChunk> retrieveTransactional(String queryText, float[] embedding, int topK) {
+    List<AiCorpusChunk> retrieveTransactional(String queryText, float[] embedding, int topK) {
         List<AiCorpusChunk> ftsList = repo.findByFts(queryText, topK);
         List<AiCorpusChunk> vecList = repo.findByVector(embedding, topK);
         return rrfFuse(ftsList, vecList, topK);

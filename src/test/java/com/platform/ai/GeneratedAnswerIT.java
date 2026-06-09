@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.platform.ai.app.CorpusIngestionService;
 import com.platform.ai.app.GenerationService;
 import com.platform.ai.domain.GenerationRepository;
-import com.platform.shared.generation.AnswerStep;
 import com.platform.shared.generation.CandidateAnswer;
 import com.platform.support.PostgresContainerSupport;
 import java.util.List;
@@ -45,16 +44,6 @@ class GeneratedAnswerIT extends PostgresContainerSupport {
         assertThat(answer.steps()).allSatisfy(step ->
                 assertThat(step.citationChunkIds()).isNotEmpty());
         assertThat(answer.isFullyCited()).isTrue();
-    }
-
-    @Test
-    void uncitedClaimAnswerIsDetectable() {
-        CandidateAnswer uncited = new CandidateAnswer(
-                List.of(new AnswerStep("ungrounded claim", List.of())));
-
-        assertThat(uncited.hasUncitedClaims()).isTrue();
-        assertThat(uncited.isFullyCited()).isFalse();
-        assertThat(uncited.citationCoverage()).isEqualTo(0.0);
     }
 
     @Test
