@@ -16,6 +16,17 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: platform-dispatcher
+      auto-offset-reset: earliest
+    producer:
+      acks: all
+    listener:
+      observation-enabled: true
+    template:
+      observation-enabled: true
 
 management:
   endpoints:
@@ -27,3 +38,7 @@ management:
       show-details: always
       probes:
         enabled: true
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
