@@ -13,10 +13,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.ai.app.AiDecisionService;
 import com.platform.ai.app.DecisionOutcome;
 import com.platform.ai.app.GenerationService;
+import com.platform.ai.app.JudgeSampler;
 import com.platform.ai.app.VerificationService;
 import com.platform.ai.domain.CorpusRepository;
 import com.platform.ai.domain.VerificationResult;
 import com.platform.shared.generation.CandidateAnswer;
+import com.platform.shared.integrity.IntegrityDecision;
+import com.platform.shared.integrity.IntegrityPort;
 import com.platform.shared.outbox.OutboxEvent;
 import com.platform.shared.telemetry.PipelineMetrics;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -33,9 +36,14 @@ class QuestionRoutedToAiHandlerTest {
     private final VerificationService verificationService = mock(VerificationService.class);
     private final AiDecisionService decisionService = mock(AiDecisionService.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final IntegrityPort integrityPort =
+            (id, text) -> new IntegrityDecision(IntegrityDecision.Mode.NORMAL, "");
+    private final JudgeSampler judgeSampler =
+            new JudgeSampler(new SimpleMeterRegistry(), 0.0);
     private final QuestionRoutedToAiHandler handler =
-            new QuestionRoutedToAiHandler(repo, generationService, verificationService, decisionService, objectMapper,
-                    new PipelineMetrics(new SimpleMeterRegistry()));
+            new QuestionRoutedToAiHandler(repo, generationService, verificationService, decisionService,
+                    objectMapper, new PipelineMetrics(new SimpleMeterRegistry()),
+                    integrityPort, judgeSampler);
 
     @Test
     void handlesQuestionRoutedEvent_triggersFullPipeline() throws Exception {
