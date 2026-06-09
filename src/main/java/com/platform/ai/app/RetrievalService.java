@@ -32,13 +32,18 @@ public class RetrievalService {
         this.embeddingPort = embeddingPort;
     }
 
-    /** Top-k hybrid retrieval over the AI corpus using RRF fusion of FTS and vector results. */
+    /**
+     * Top-k hybrid retrieval over the AI corpus using RRF fusion of FTS and vector results.
+     * {@code @Transactional(readOnly=true)} is placed here (the entry point) so the Spring AOP
+     * proxy intercepts it; embedding is computed first, before the transaction opens, to avoid
+     * holding the DB connection during model inference.
+     */
+    @Transactional(readOnly = true)
     public List<AiCorpusChunk> retrieve(String queryText, int topK) {
         float[] embedding = embeddingPort.embed(queryText);
         return retrieveTransactional(queryText, embedding, topK);
     }
 
-    @Transactional(readOnly = true)
     public List<AiCorpusChunk> retrieveTransactional(String queryText, float[] embedding, int topK) {
         List<AiCorpusChunk> ftsList = repo.findByFts(queryText, topK);
         List<AiCorpusChunk> vecList = repo.findByVector(embedding, topK);

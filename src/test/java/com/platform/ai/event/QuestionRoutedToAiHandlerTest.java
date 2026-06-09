@@ -1,5 +1,6 @@
 package com.platform.ai.event;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -46,6 +47,6 @@ class QuestionRoutedToAiHandlerTest {
 
     @Test
     void consumerNameIsStable() {
-        assert handler.consumerName().equals(QuestionRoutedToAiHandler.CONSUMER);
+        assertThat(handler.consumerName()).isEqualTo(QuestionRoutedToAiHandler.CONSUMER);
     }
 }

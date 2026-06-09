@@ -81,11 +81,20 @@ public class CorpusIngestionService {
     }
 
     /** Inserts all seed chunks; safe to call repeatedly (upsert by id). */
-    @Transactional
     public void seed() {
-        for (SeedChunk sc : SEED_CHUNKS) {
-            float[] embedding = embeddingPort.embed(sc.text());
-            repo.upsertChunk(sc.id(), SOURCE, LICENSE, sc.text(), embedding);
+        // Embeddings computed before the transaction so a model failure does not roll back
+        // already-written rows and the DB connection is not held during inference.
+        List<float[]> embeddings = SEED_CHUNKS.stream()
+                .map(sc -> embeddingPort.embed(sc.text()))
+                .toList();
+        persistSeed(embeddings);
+    }
+
+    @Transactional
+    public void persistSeed(List<float[]> embeddings) {
+        for (int i = 0; i < SEED_CHUNKS.size(); i++) {
+            SeedChunk sc = SEED_CHUNKS.get(i);
+            repo.upsertChunk(sc.id(), SOURCE, LICENSE, sc.text(), embeddings.get(i));
         }
     }
 
