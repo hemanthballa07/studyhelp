@@ -15,6 +15,7 @@ import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -43,6 +44,14 @@ class KafkaDispatchIT extends PostgresContainerSupport {
     @Autowired EventDispatcher dispatcher;
     @Autowired RecordingHandler handler;
     @Autowired JdbcTemplate jdbc;
+
+    // Mark any backlog from prior tests as already-published so relayPending() only sees this
+    // test's own event. Without this, accumulated events from ClaimLoadIT and other ITs push
+    // the test event beyond the relay's batch window (BATCH_SIZE=100, oldest-first ordering).
+    @BeforeEach
+    void drainOutboxBacklog() {
+        jdbc.update("UPDATE outbox SET published_at = now() WHERE published_at IS NULL");
+    }
 
     @Test
     void relayPublishesToKafkaAndConsumerDeliversOnce() {
