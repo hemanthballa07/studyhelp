@@ -98,5 +98,5 @@ public class CorpusIngestionService {
         }
     }
 
-    record SeedChunk(UUID id, String text) {}
+    public record SeedChunk(UUID id, String text) {}
 }
