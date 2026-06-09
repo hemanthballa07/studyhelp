@@ -46,7 +46,7 @@ public class QuestionPostingService {
                 command.deadlineAt());
 
         String payload = toJson(new QuestionPosted(
-                questionId, command.studentId(), command.subject(), command.title()));
+                questionId, command.studentId(), command.subject(), command.title(), command.body()));
         questions.appendEvent(eventId, questionId, QuestionPosted.TYPE, null, POSTED, payload);
         outbox.append(new OutboxEvent(
                 eventId, questionId, AGGREGATE_TYPE, QuestionPosted.TYPE, payload, clock.instant()));

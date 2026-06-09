@@ -10,6 +10,7 @@ import com.platform.shared.outbox.OutboxStore;
 import com.platform.support.PostgresContainerSupport;
 import java.time.Instant;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -34,6 +35,13 @@ class QuestionRoutingIT extends PostgresContainerSupport {
 
     @Autowired
     JdbcTemplate jdbc;
+
+    @BeforeEach
+    void clearCorpus() {
+        // corpus_index persists across tests in the singleton container; routing tests are
+        // not testing search, so a stale index would trigger false-positive dedup short-circuits.
+        jdbc.execute("DELETE FROM corpus_index");
+    }
 
     @Test
     void consumingQuestionPostedDrivesToClaimableAndEmitsQuestionRouted() {

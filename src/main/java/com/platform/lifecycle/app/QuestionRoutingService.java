@@ -5,7 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.lifecycle.domain.QuestionRepository;
 import com.platform.lifecycle.domain.QuestionSnapshot;
 import com.platform.lifecycle.domain.QuestionState;
+import com.platform.lifecycle.event.DuplicateDetected;
 import com.platform.lifecycle.event.QuestionRouted;
+import com.platform.shared.dedup.DedupPort;
+import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,17 +29,22 @@ public class QuestionRoutingService {
 
     private final QuestionRepository questions;
     private final LifecycleTransitionService transitions;
+    private final DedupPort dedupPort;
     private final ObjectMapper objectMapper;
 
     public QuestionRoutingService(
-            QuestionRepository questions, LifecycleTransitionService transitions, ObjectMapper objectMapper) {
+            QuestionRepository questions,
+            LifecycleTransitionService transitions,
+            DedupPort dedupPort,
+            ObjectMapper objectMapper) {
         this.questions = questions;
         this.transitions = transitions;
+        this.dedupPort = dedupPort;
         this.objectMapper = objectMapper;
     }
 
     @Transactional
-    public void route(UUID questionId, String subject) {
+    public void route(UUID questionId, String subject, String title, String body) {
         QuestionSnapshot snapshot = questions.find(questionId)
                 .orElseThrow(() -> new IllegalStateException(
                         "QuestionPosted for unknown question " + questionId + "; data inconsistency"));
@@ -51,7 +59,14 @@ public class QuestionRoutingService {
         long version = snapshot.version();
         version = transitions.transition(questionId, QuestionState.POSTED, QuestionState.DEDUP_CHECKING,
                 version, "DedupCheckStarted", "{}", false);
-        // Dedup is a pass-through until Slice 9: no duplicate found, so the question proceeds to routing.
+
+        Optional<UUID> dup = dedupPort.checkDuplicate(questionId, subject, title, body);
+        if (dup.isPresent()) {
+            transitions.transition(questionId, QuestionState.DEDUP_CHECKING, QuestionState.DELIVERED,
+                    version, DuplicateDetected.TYPE, toJson(new DuplicateDetected(questionId, dup.get())), true);
+            return;
+        }
+
         version = transitions.transition(questionId, QuestionState.DEDUP_CHECKING, QuestionState.ROUTED,
                 version, QuestionRouted.TYPE, routedPayload(questionId, subject), true);
         transitions.transition(questionId, QuestionState.ROUTED, QuestionState.CLAIMABLE,
@@ -59,10 +74,14 @@ public class QuestionRoutingService {
     }
 
     private String routedPayload(UUID questionId, String subject) {
+        return toJson(new QuestionRouted(questionId, subject));
+    }
+
+    private String toJson(Object value) {
         try {
-            return objectMapper.writeValueAsString(new QuestionRouted(questionId, subject));
+            return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException ex) {
-            throw new IllegalStateException("failed to serialize QuestionRouted payload", ex);
+            throw new IllegalStateException("failed to serialize lifecycle routing payload", ex);
         }
     }
 }
