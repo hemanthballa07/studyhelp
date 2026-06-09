@@ -1,5 +1,6 @@
 package com.platform.support;
 
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -10,7 +11,11 @@ import org.testcontainers.utility.DockerImageName;
  * JVM and reused by every IT class (Ryuk reaps it at JVM exit). Deliberately not annotated with
  * {@code @Testcontainers}; its per-class stop would kill a container that other cached Spring
  * contexts still point at, which breaks classes that share a context (see ConnectException on CI).
+ *
+ * <p>The "test" profile activates stub adapters (e.g. {@code DeterministicStubEmbeddingAdapter})
+ * so IT classes don't need a live model.
  */
+@ActiveProfiles("test")
 public abstract class PostgresContainerSupport {
 
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(
