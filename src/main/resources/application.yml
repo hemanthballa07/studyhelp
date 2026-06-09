@@ -29,6 +29,9 @@ spring:
       observation-enabled: true
 
 platform:
+  integrity:
+    judge:
+      sample-rate: 0.10
   ai:
     confidence:
       tau-high: 0.82
