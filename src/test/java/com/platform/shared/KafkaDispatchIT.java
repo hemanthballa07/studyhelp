@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -64,7 +65,7 @@ class KafkaDispatchIT extends PostgresContainerSupport {
     }
 
     @Test
-    void replayIsNoOp() throws InterruptedException {
+    void replayIsNoOp() {
         UUID eventId = UUID.randomUUID();
         OutboxEvent event = new OutboxEvent(
                 eventId, UUID.randomUUID(), "Test", "TestEvent", "{}", Instant.now());
@@ -74,11 +75,11 @@ class KafkaDispatchIT extends PostgresContainerSupport {
         dispatcher.dispatch(event);
         dispatcher.dispatch(event);
 
+        // Wait for at least one delivery, then assert the count stays at 1 for a sustained window.
         await().atMost(10, TimeUnit.SECONDS).until(() -> handler.countFor(eventId) >= 1);
-        // Brief pause to allow the second Kafka message to be consumed before asserting.
-        Thread.sleep(500);
-
-        assertThat(handler.countFor(eventId)).isEqualTo(1);
+        await().during(Duration.ofMillis(400))
+                .atMost(Duration.ofMillis(600))
+                .until(() -> handler.countFor(eventId) == 1);
     }
 
     @TestConfiguration

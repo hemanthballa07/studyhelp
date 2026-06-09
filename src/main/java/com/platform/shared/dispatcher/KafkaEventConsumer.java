@@ -61,6 +61,9 @@ public class KafkaEventConsumer {
                     handler.handle(event);
                 } catch (RuntimeException ex) {
                     status.setRollbackOnly();
+                    // All markProcessed rows in this tx roll back, so every handler retries.
+                    // After DefaultErrorHandler exhausts retries (10 by default) the offset
+                    // commits and the message is dropped — Slice 19 adds a dead-letter topic.
                     throw new IllegalStateException(
                             "consumer " + consumer + " failed to handle event " + event.eventId(), ex);
                 }
