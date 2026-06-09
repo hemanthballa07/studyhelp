@@ -5,6 +5,7 @@ import jakarta.annotation.PostConstruct;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
  * drains a batch.
  */
 @Component
+@Profile("!kafka")
 public class InProcessEventDispatcher implements EventDispatcher {
 
     private static final Logger log = LoggerFactory.getLogger(InProcessEventDispatcher.class);
