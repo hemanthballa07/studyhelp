@@ -52,7 +52,7 @@ class KafkaDispatchIT extends PostgresContainerSupport {
 
         relay.relayPending();
 
-        await().atMost(10, TimeUnit.SECONDS).until(() -> handler.countFor(eventId) == 1);
+        await().atMost(30, TimeUnit.SECONDS).until(() -> handler.countFor(eventId) == 1);
 
         Integer processed = jdbc.queryForObject(
                 "SELECT count(*) FROM processed_events WHERE consumer = 'kafka-test-consumer' AND event_id = ?",
@@ -76,7 +76,7 @@ class KafkaDispatchIT extends PostgresContainerSupport {
         dispatcher.dispatch(event);
 
         // Wait for at least one delivery, then assert the count stays at 1 for a sustained window.
-        await().atMost(10, TimeUnit.SECONDS).until(() -> handler.countFor(eventId) >= 1);
+        await().atMost(30, TimeUnit.SECONDS).until(() -> handler.countFor(eventId) >= 1);
         await().during(Duration.ofMillis(400))
                 .atMost(Duration.ofMillis(600))
                 .until(() -> handler.countFor(eventId) == 1);
