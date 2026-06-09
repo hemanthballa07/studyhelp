@@ -8,6 +8,8 @@ import com.platform.lifecycle.domain.QuestionState;
 import com.platform.lifecycle.event.DuplicateDetected;
 import com.platform.lifecycle.event.QuestionRouted;
 import com.platform.shared.dedup.DedupPort;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -31,16 +33,21 @@ public class QuestionRoutingService {
     private final LifecycleTransitionService transitions;
     private final DedupPort dedupPort;
     private final ObjectMapper objectMapper;
+    private final Counter dedupHit;
+    private final Counter dedupMiss;
 
     public QuestionRoutingService(
             QuestionRepository questions,
             LifecycleTransitionService transitions,
             DedupPort dedupPort,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            MeterRegistry meterRegistry) {
         this.questions = questions;
         this.transitions = transitions;
         this.dedupPort = dedupPort;
         this.objectMapper = objectMapper;
+        this.dedupHit = Counter.builder("lifecycle.dedup.result").tag("result", "hit").register(meterRegistry);
+        this.dedupMiss = Counter.builder("lifecycle.dedup.result").tag("result", "miss").register(meterRegistry);
     }
 
     @Transactional
@@ -62,10 +69,12 @@ public class QuestionRoutingService {
 
         Optional<UUID> dup = dedupPort.checkDuplicate(questionId, subject, title, body);
         if (dup.isPresent()) {
+            dedupHit.increment();
             transitions.transition(questionId, QuestionState.DEDUP_CHECKING, QuestionState.DELIVERED,
                     version, DuplicateDetected.TYPE, toJson(new DuplicateDetected(questionId, dup.get())), true);
             return;
         }
+        dedupMiss.increment();
 
         version = transitions.transition(questionId, QuestionState.DEDUP_CHECKING, QuestionState.ROUTED,
                 version, QuestionRouted.TYPE, routedPayload(questionId, subject, title, body), true);

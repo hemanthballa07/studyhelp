@@ -10,6 +10,8 @@ import com.platform.qc.event.QcPassed;
 import com.platform.qc.event.RevisionRequested;
 import com.platform.shared.outbox.OutboxEvent;
 import com.platform.shared.outbox.OutboxStore;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -29,14 +31,20 @@ public class QcService {
     private final OutboxStore outbox;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final Counter qcPass;
+    private final Counter qcFail;
+    private final Counter qcRevision;
 
     public QcService(QcRubricScorer scorer, QcReviewRepository reviews, OutboxStore outbox,
-            ObjectMapper objectMapper, Clock clock) {
+            ObjectMapper objectMapper, Clock clock, MeterRegistry meterRegistry) {
         this.scorer = scorer;
         this.reviews = reviews;
         this.outbox = outbox;
         this.objectMapper = objectMapper;
         this.clock = clock;
+        this.qcPass = Counter.builder("qc.review.count").tag("outcome", "PASS").register(meterRegistry);
+        this.qcFail = Counter.builder("qc.review.count").tag("outcome", "FAIL").register(meterRegistry);
+        this.qcRevision = Counter.builder("qc.review.count").tag("outcome", "REVISION_REQUESTED").register(meterRegistry);
     }
 
     @Transactional
@@ -50,12 +58,15 @@ public class QcService {
         String payload;
 
         if (rubricScore.status() == QcStatus.PASS) {
+            qcPass.increment();
             eventType = QcPassed.TYPE;
             payload = toJson(new QcPassed(answerId, questionId, expertId));
         } else if (rubricScore.status() == QcStatus.FAIL) {
+            qcFail.increment();
             eventType = QcFailed.TYPE;
             payload = toJson(new QcFailed(answerId, questionId, expertId));
         } else {
+            qcRevision.increment();
             eventType = RevisionRequested.TYPE;
             payload = toJson(new RevisionRequested(answerId, questionId, expertId, rubricScore.suggestions()));
         }

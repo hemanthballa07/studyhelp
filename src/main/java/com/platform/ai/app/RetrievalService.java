@@ -3,6 +3,9 @@ package com.platform.ai.app;
 import com.platform.ai.domain.AiCorpusChunk;
 import com.platform.ai.domain.CorpusRepository;
 import com.platform.shared.embedding.EmbeddingPort;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.observation.annotation.Observed;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -26,10 +29,14 @@ public class RetrievalService {
 
     private final CorpusRepository repo;
     private final EmbeddingPort embeddingPort;
+    private final Counter retrievalHit;
+    private final Counter retrievalMiss;
 
-    public RetrievalService(CorpusRepository repo, EmbeddingPort embeddingPort) {
+    public RetrievalService(CorpusRepository repo, EmbeddingPort embeddingPort, MeterRegistry registry) {
         this.repo = repo;
         this.embeddingPort = embeddingPort;
+        this.retrievalHit = Counter.builder("ai.retrieval.hit").tag("result", "hit").register(registry);
+        this.retrievalMiss = Counter.builder("ai.retrieval.hit").tag("result", "miss").register(registry);
     }
 
     /**
@@ -38,10 +45,13 @@ public class RetrievalService {
      * proxy intercepts it; embedding is computed first, before the transaction opens, to avoid
      * holding the DB connection during model inference.
      */
+    @Observed(name = "ai.retrieve.latency")
     @Transactional(readOnly = true)
     public List<AiCorpusChunk> retrieve(String queryText, int topK) {
         float[] embedding = embeddingPort.embed(queryText);
-        return retrieveTransactional(queryText, embedding, topK);
+        List<AiCorpusChunk> results = retrieveTransactional(queryText, embedding, topK);
+        (results.isEmpty() ? retrievalMiss : retrievalHit).increment();
+        return results;
     }
 
     List<AiCorpusChunk> retrieveTransactional(String queryText, float[] embedding, int topK) {

@@ -1,0 +1,87 @@
+{
+  "id": null,
+  "uid": "studyhelp-cost",
+  "title": "Cost",
+  "schemaVersion": 36,
+  "version": 1,
+  "refresh": "30s",
+  "time": {"from": "now-24h", "to": "now"},
+  "timezone": "browser",
+  "tags": ["studyhelp", "cost"],
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Pipeline Invocations (24h)",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum(increase(ai_pipeline_latency_seconds_count[24h]))",
+          "legendFormat": "Invocations"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Model API Errors (24h)",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum(increase(ai_model_error_total[24h]))",
+          "legendFormat": "Errors"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": 0}, {"color": "yellow", "value": 5}, {"color": "red", "value": 20}]}
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "piechart",
+      "title": "Decisions by Outcome (1h)",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum(increase(ai_decision_count_total[1h])) by (outcome)",
+          "legendFormat": "{{outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Pipeline Invocations per Hour",
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum(rate(ai_pipeline_latency_seconds_count[5m])) * 3600",
+          "legendFormat": "req/hr"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "reqph"}}
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Model API Errors per Stage",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum(rate(ai_model_error_total[5m])) by (stage)",
+          "legendFormat": "{{stage}}"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "reqps"}}
+    }
+  ]
+}

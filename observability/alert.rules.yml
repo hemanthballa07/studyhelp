@@ -1,0 +1,76 @@
+groups:
+  - name: studyhelp-slos
+    interval: 30s
+    rules:
+
+      # ── Recording rule: pre-compute p95 to speed up dashboard queries ─────────
+      - record: job:ai_pipeline_latency_seconds:p95_5m
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(ai_pipeline_latency_seconds_bucket[5m])) by (le)
+          )
+
+      # ── SLO 1: p95 answer pipeline latency < 8 s ─────────────────────────────
+      # Fast burn: 1h window (raises pager if breached for 5 min)
+      - alert: AnswerLatencySLOFastBurn
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(ai_pipeline_latency_seconds_bucket[1h])) by (le)
+          ) > 8
+        for: 5m
+        labels:
+          severity: critical
+          slo: answer_latency_p95_8s
+        annotations:
+          summary: "Answer pipeline p95 latency SLO fast burn (>8 s for 5 min)"
+          description: >
+            The 1-hour p95 answer latency has exceeded 8 s for 5 minutes.
+            At this rate the weekly error budget will be exhausted within hours.
+
+      # Slow burn: 6h window (raises ticket if breached for 15 min)
+      - alert: AnswerLatencySLOSlowBurn
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(ai_pipeline_latency_seconds_bucket[6h])) by (le)
+          ) > 8
+        for: 15m
+        labels:
+          severity: warning
+          slo: answer_latency_p95_8s
+        annotations:
+          summary: "Answer pipeline p95 latency trending above SLO (6h window)"
+          description: >
+            The 6-hour p95 answer latency has exceeded 8 s for 15 minutes.
+            Slow budget burn detected.
+
+      # ── SLO 2: hallucination rate < 3% (data wired in Slice 18) ─────────────
+      - alert: HallucinationRateExceedsSLO
+        expr: |
+          (
+            sum(rate(ai_hallucination_total{result="hallucinated"}[1h]))
+            /
+            sum(rate(ai_hallucination_total[1h]))
+          ) > 0.03
+        for: 15m
+        labels:
+          severity: critical
+          slo: hallucination_rate_3pct
+        annotations:
+          summary: "Hallucination rate exceeded 3% SLO"
+          description: "Judge-sampled hallucination rate >3% sustained for 15 min."
+
+      # ── SLO 3: model API error rate < 1% ─────────────────────────────────────
+      - alert: ModelApiErrorRateExceedsSLO
+        expr: |
+          (
+            sum(rate(ai_model_error_total[5m]))
+            /
+            (sum(rate(ai_pipeline_latency_seconds_count[5m])) > 0)
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+          slo: model_api_error_rate_1pct
+        annotations:
+          summary: "Model API error rate exceeded 1% SLO"
+          description: "Model API errors >1% of pipeline invocations for 5 minutes."

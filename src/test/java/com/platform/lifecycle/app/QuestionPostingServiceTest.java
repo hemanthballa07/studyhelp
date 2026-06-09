@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.lifecycle.domain.QuestionRepository;
 import com.platform.shared.outbox.OutboxEvent;
 import com.platform.shared.outbox.OutboxStore;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -41,7 +42,7 @@ class QuestionPostingServiceTest {
     @BeforeEach
     void setUp() {
         Clock clock = Clock.fixed(Instant.parse("2026-06-06T12:00:00Z"), ZoneOffset.UTC);
-        service = new QuestionPostingService(questions, outbox, new ObjectMapper(), clock);
+        service = new QuestionPostingService(questions, outbox, new ObjectMapper(), clock, new SimpleMeterRegistry());
     }
 
     @Test

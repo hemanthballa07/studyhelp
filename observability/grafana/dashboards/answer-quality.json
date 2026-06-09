@@ -1,0 +1,118 @@
+{
+  "id": null,
+  "uid": "studyhelp-answer-quality",
+  "title": "Answer Quality",
+  "schemaVersion": 36,
+  "version": 1,
+  "refresh": "30s",
+  "time": {"from": "now-1h", "to": "now"},
+  "timezone": "browser",
+  "tags": ["studyhelp", "ai"],
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Decision Rate by Outcome",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum(rate(ai_decision_count_total[5m])) by (outcome)",
+          "legendFormat": "{{outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "reqps"},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "PRODUCED"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]},
+          {"matcher": {"id": "byName", "options": "FLAGGED"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "yellow"}}]},
+          {"matcher": {"id": "byName", "options": "ABSTAINED"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]}
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Deliver Rate (1h)",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum(rate(ai_decision_count_total{outcome=\"PRODUCED\"}[1h])) / sum(rate(ai_decision_count_total[1h])) * 100",
+          "legendFormat": "Deliver %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": 0}, {"color": "yellow", "value": 50}, {"color": "green", "value": 70}]}
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Retrieval Hit Rate (5m)",
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum(rate(ai_retrieval_hit_total{result=\"hit\"}[5m])) / sum(rate(ai_retrieval_hit_total[5m])) * 100",
+          "legendFormat": "Hit %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": 0}, {"color": "yellow", "value": 60}, {"color": "green", "value": 80}]}
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Confidence p50 / p95 by Decision",
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(ai_verification_confidence_bucket[5m])) by (le, decision))",
+          "legendFormat": "p50 {{decision}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(ai_verification_confidence_bucket[5m])) by (le, decision))",
+          "legendFormat": "p95 {{decision}}"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "none", "min": 0, "max": 1}}
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Retrieval Hit / Miss Rate",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum(rate(ai_retrieval_hit_total[5m])) by (result)",
+          "legendFormat": "{{result}}"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "reqps"}}
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Model API Error Rate",
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum(rate(ai_model_error_total[5m])) by (stage)",
+          "legendFormat": "{{stage}}"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "reqps"}}
+    }
+  ]
+}

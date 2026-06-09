@@ -5,6 +5,7 @@ import com.platform.ai.domain.GenerationRepository;
 import com.platform.shared.generation.CandidateAnswer;
 import com.platform.shared.generation.ContextChunk;
 import com.platform.shared.generation.GenerationPort;
+import io.micrometer.observation.annotation.Observed;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -40,6 +41,7 @@ public class GenerationService {
      * Idempotent: returns the existing answer if this question was already generated.
      * The answer is pre-verifier; the verifier runs in Slice 14.
      */
+    @Observed(name = "ai.generate.latency")
     public CandidateAnswer generate(UUID questionId, String questionText) {
         return generationRepo.findByQuestionId(questionId)
                 .orElseGet(() -> generateAndPersist(questionId, questionText));

@@ -10,6 +10,8 @@ import com.platform.ai.domain.VerificationResult;
 import com.platform.shared.dispatcher.EventHandler;
 import com.platform.shared.generation.CandidateAnswer;
 import com.platform.shared.outbox.OutboxEvent;
+import com.platform.shared.telemetry.PipelineMetrics;
+import io.micrometer.core.instrument.Timer;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,18 +34,21 @@ public class QuestionRoutedToAiHandler implements EventHandler {
     private final VerificationService verificationService;
     private final AiDecisionService decisionService;
     private final ObjectMapper objectMapper;
+    private final PipelineMetrics pipelineMetrics;
 
     public QuestionRoutedToAiHandler(
             CorpusRepository repo,
             GenerationService generationService,
             VerificationService verificationService,
             AiDecisionService decisionService,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            PipelineMetrics pipelineMetrics) {
         this.repo = repo;
         this.generationService = generationService;
         this.verificationService = verificationService;
         this.decisionService = decisionService;
         this.objectMapper = objectMapper;
+        this.pipelineMetrics = pipelineMetrics;
     }
 
     @Override
@@ -56,6 +61,7 @@ public class QuestionRoutedToAiHandler implements EventHandler {
         if (!"QuestionRouted".equals(event.eventType())) {
             return;
         }
+        Timer.Sample pipeline = pipelineMetrics.startPipeline();
         try {
             JsonNode node = objectMapper.readTree(event.payload());
             UUID questionId = UUID.fromString(node.get("questionId").asText());
@@ -74,6 +80,8 @@ public class QuestionRoutedToAiHandler implements EventHandler {
         } catch (Exception ex) {
             throw new IllegalStateException(
                     "Failed to handle QuestionRouted event " + event.eventId(), ex);
+        } finally {
+            pipelineMetrics.stopPipeline(pipeline);
         }
     }
 }
