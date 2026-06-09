@@ -4,11 +4,15 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.search.domain.SearchRepository;
 import com.platform.search.event.ContentIndexed;
+import com.platform.shared.embedding.EmbeddingPort;
 import com.platform.shared.outbox.OutboxEvent;
 import com.platform.shared.outbox.OutboxStore;
 import java.time.Clock;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,20 +23,23 @@ public class SearchService {
     private final OutboxStore outbox;
     private final Clock clock;
     private final ObjectMapper objectMapper;
+    private final EmbeddingPort embeddingPort;
 
-    public SearchService(SearchRepository repo, OutboxStore outbox, Clock clock, ObjectMapper objectMapper) {
+    public SearchService(SearchRepository repo, OutboxStore outbox, Clock clock,
+            ObjectMapper objectMapper, EmbeddingPort embeddingPort) {
         this.repo = repo;
         this.outbox = outbox;
         this.clock = clock;
         this.objectMapper = objectMapper;
+        this.embeddingPort = embeddingPort;
     }
 
     @Transactional
     public void indexQuestion(UUID questionId, String subject, String title, String body) {
         repo.upsert(questionId, subject, title, body);
+        float[] embedding = embeddingPort.embed(title + " " + body);
+        repo.upsertChunk(questionId, title + " " + body, embedding);
         String payload = toJson(new ContentIndexed(questionId));
-        // ContentIndexed is pre-emptive for Slice 10 (pgvector embedding consumer); no handler
-        // exists yet, so the relay marks these rows published without a consumer doing work.
         outbox.append(new OutboxEvent(
                 UUID.randomUUID(), questionId, "Question", ContentIndexed.TYPE, payload, clock.instant()));
     }
@@ -50,6 +57,27 @@ public class SearchService {
     @Transactional(readOnly = true)
     public List<UUID> search(String query, int limit) {
         return repo.search(query, limit);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UUID> hybridSearch(String query, int limit) {
+        List<UUID> fts = repo.search(query, limit);
+        float[] queryEmbedding = embeddingPort.embed(query);
+        List<UUID> vector = repo.findSimilar(queryEmbedding, limit);
+
+        Map<UUID, Double> scores = new HashMap<>();
+        for (int i = 0; i < fts.size(); i++) {
+            scores.merge(fts.get(i), 1.0 / (60 + i + 1), Double::sum);
+        }
+        for (int i = 0; i < vector.size(); i++) {
+            scores.merge(vector.get(i), 1.0 / (60 + i + 1), Double::sum);
+        }
+
+        return scores.entrySet().stream()
+                .sorted(Map.Entry.<UUID, Double>comparingByValue().reversed())
+                .limit(limit)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
     }
 
     private String toJson(Object value) {

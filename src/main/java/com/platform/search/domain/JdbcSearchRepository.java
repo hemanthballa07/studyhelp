@@ -1,5 +1,6 @@
 package com.platform.search.domain;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -76,6 +77,35 @@ public class JdbcSearchRepository implements SearchRepository {
                 """,
                 new MapSqlParameterSource()
                         .addValue("query", query)
+                        .addValue("limit", limit),
+                (rs, rowNum) -> rs.getObject("question_id", UUID.class));
+    }
+
+    @Override
+    public void upsertChunk(UUID questionId, String text, float[] embedding) {
+        jdbc.update("DELETE FROM corpus_chunk WHERE question_id = :questionId",
+                new MapSqlParameterSource("questionId", questionId));
+        jdbc.update("""
+                INSERT INTO corpus_chunk (id, question_id, chunk_text, embedding)
+                VALUES (:id, :questionId, :text, CAST(:embedding AS vector))
+                """,
+                new MapSqlParameterSource()
+                        .addValue("id", UUID.randomUUID())
+                        .addValue("questionId", questionId)
+                        .addValue("text", text)
+                        .addValue("embedding", Arrays.toString(embedding)));
+    }
+
+    @Override
+    public List<UUID> findSimilar(float[] queryEmbedding, int limit) {
+        return jdbc.query("""
+                SELECT question_id
+                FROM corpus_chunk
+                ORDER BY embedding <=> CAST(:qv AS vector)
+                LIMIT :limit
+                """,
+                new MapSqlParameterSource()
+                        .addValue("qv", Arrays.toString(queryEmbedding))
                         .addValue("limit", limit),
                 (rs, rowNum) -> rs.getObject("question_id", UUID.class));
     }
