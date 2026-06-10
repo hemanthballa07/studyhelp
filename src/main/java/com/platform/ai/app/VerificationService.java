@@ -10,6 +10,7 @@ import com.platform.shared.generation.AnswerStep;
 import com.platform.shared.generation.CandidateAnswer;
 import com.platform.shared.generation.ContextChunk;
 import com.platform.shared.generation.GenerationPort;
+import com.platform.shared.code.CodeVerifierPort;
 import com.platform.shared.math.MathVerifierPort;
 import com.platform.shared.outbox.OutboxEvent;
 import com.platform.shared.outbox.OutboxStore;
@@ -31,7 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
  *  1. Groundedness — citation coverage + lexical overlap of step text with cited chunks.
  *  2. Structural QC — reuses QcRubricScorer via StructuralQcPort (ArchUnit-safe; no qc import).
  *  3. Adaptive self-consistency — N=1 default; escalate to 3 if borderline citation coverage.
- *  4. Math — SymPy sidecar via MathVerifierPort.
+ *  4. Domain — code answers: LLM judge via CodeVerifierPort; math answers: SymPy via MathVerifierPort.
  *
  * Self-consistency calls GenerationPort directly (not GenerationService) to avoid hitting the
  * idempotency guard that would return the cached answer for every repeated call.
@@ -45,6 +46,7 @@ public class VerificationService {
 
     private final StructuralQcPort structuralQcPort;
     private final MathVerifierPort mathVerifierPort;
+    private final CodeVerifierPort codeVerifierPort;
     private final GenerationPort generationPort;
     private final RetrievalService retrievalService;
     private final VerificationRepository verificationRepo;
@@ -54,6 +56,7 @@ public class VerificationService {
     public VerificationService(
             StructuralQcPort structuralQcPort,
             MathVerifierPort mathVerifierPort,
+            CodeVerifierPort codeVerifierPort,
             GenerationPort generationPort,
             RetrievalService retrievalService,
             VerificationRepository verificationRepo,
@@ -61,6 +64,7 @@ public class VerificationService {
             ObjectMapper objectMapper) {
         this.structuralQcPort = structuralQcPort;
         this.mathVerifierPort = mathVerifierPort;
+        this.codeVerifierPort = codeVerifierPort;
         this.generationPort = generationPort;
         this.retrievalService = retrievalService;
         this.verificationRepo = verificationRepo;
@@ -87,7 +91,9 @@ public class VerificationService {
         double groundedness = computeGroundedness(candidate, chunks);
         double structural = structuralQcPort.score(toBodyText(candidate), subjectCode);
         double consistency = computeConsistency(questionText, candidate, chunks);
-        double math = mathVerifierPort.verify(questionText, extractFinalAnswer(candidate));
+        double math = hasCodeBlock(candidate)
+                ? codeVerifierPort.verify(questionText, extractCodeBlock(candidate))
+                : mathVerifierPort.verify(questionText, extractFinalAnswer(candidate));
         double aggregate = (groundedness + structural + consistency + math) / 4.0;
 
         VerificationResult result = new VerificationResult(
@@ -176,6 +182,31 @@ public class VerificationService {
     private String extractFinalAnswer(CandidateAnswer candidate) {
         List<AnswerStep> steps = candidate.steps();
         return steps.isEmpty() ? "" : steps.get(steps.size() - 1).text();
+    }
+
+    // Returns true if any step text contains a markdown code fence or Python REPL prefix.
+    boolean hasCodeBlock(CandidateAnswer candidate) {
+        return candidate.steps().stream()
+                .anyMatch(s -> s.text().contains("```") || s.text().contains(">>> "));
+    }
+
+    // Extracts content between the first pair of ``` fences; falls back to last step text.
+    String extractCodeBlock(CandidateAnswer candidate) {
+        for (AnswerStep step : candidate.steps()) {
+            String text = step.text();
+            int open = text.indexOf("```");
+            if (open >= 0) {
+                // skip the language tag on the opening fence line if present
+                int contentStart = text.indexOf('\n', open);
+                if (contentStart < 0) contentStart = open + 3;
+                else contentStart++;
+                int close = text.indexOf("```", contentStart);
+                if (close > contentStart) {
+                    return text.substring(contentStart, close).strip();
+                }
+            }
+        }
+        return extractFinalAnswer(candidate);
     }
 
     private String toBodyText(CandidateAnswer candidate) {

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -16,6 +17,7 @@ import com.platform.ai.domain.VerificationRepository;
 import com.platform.ai.domain.VerificationResult;
 import com.platform.shared.generation.AnswerStep;
 import com.platform.shared.generation.CandidateAnswer;
+import com.platform.shared.code.CodeVerifierPort;
 import com.platform.shared.generation.GenerationPort;
 import com.platform.shared.math.MathVerifierPort;
 import com.platform.shared.outbox.OutboxStore;
@@ -33,6 +35,7 @@ class VerificationServiceTest {
 
     private final StructuralQcPort structuralQcPort = mock(StructuralQcPort.class);
     private final MathVerifierPort mathVerifierPort = mock(MathVerifierPort.class);
+    private final CodeVerifierPort codeVerifierPort = mock(CodeVerifierPort.class);
     private final GenerationPort generationPort = mock(GenerationPort.class);
     private final RetrievalService retrievalService = mock(RetrievalService.class);
     private final VerificationRepository verificationRepo = mock(VerificationRepository.class);
@@ -43,8 +46,9 @@ class VerificationServiceTest {
 
     @BeforeEach
     void setUp() {
-        svc = new VerificationService(structuralQcPort, mathVerifierPort, generationPort,
-                retrievalService, verificationRepo, outbox, objectMapper);
+        when(codeVerifierPort.verify(anyString(), anyString())).thenReturn(0.5);
+        svc = new VerificationService(structuralQcPort, mathVerifierPort, codeVerifierPort,
+                generationPort, retrievalService, verificationRepo, outbox, objectMapper);
     }
 
     // ── Groundedness signal ────────────────────────────────────────────────────
@@ -180,6 +184,27 @@ class VerificationServiceTest {
         assertThat(result).isEqualTo(cached);
         verify(verificationRepo, never()).save(any());
         verify(outbox, never()).append(any());
+    }
+
+    // ── Code-block detection routing ──────────────────────────────────────────
+
+    @Test
+    void verify_withCodeBlock_invokesCodeVerifier_notMathVerifier() {
+        UUID questionId = UUID.randomUUID();
+        CandidateAnswer candidate = new CandidateAnswer(List.of(
+                new AnswerStep("Here is the solution:\n```python\nx = 1 + 1\nprint(x)\n```", List.of())));
+
+        when(verificationRepo.findByQuestionId(questionId)).thenReturn(Optional.empty());
+        when(verificationRepo.save(any())).thenReturn(1);
+        when(retrievalService.retrieve(anyString(), anyInt())).thenReturn(List.of());
+        when(structuralQcPort.score(anyString(), anyString())).thenReturn(0.5);
+        when(generationPort.generate(anyString(), any())).thenReturn(candidate);
+        when(codeVerifierPort.verify(anyString(), argThat(s -> s.contains("x = 1 + 1")))).thenReturn(0.9);
+
+        svc.verify(questionId, "Write code to add two numbers", "CS", candidate);
+
+        verify(codeVerifierPort).verify(anyString(), argThat(s -> s.contains("x = 1 + 1")));
+        verify(mathVerifierPort, never()).verify(anyString(), anyString());
     }
 
     @Test
